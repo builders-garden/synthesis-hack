@@ -1,0 +1,9 @@
+{
+  "name": "@synthesis-hack/shared",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts"
+  }
+}
