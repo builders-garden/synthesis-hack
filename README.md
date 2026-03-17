@@ -14,8 +14,9 @@ A user stakes ETH into a treasury contract backed by wstETH. The contract enforc
 
 1. **Fund** — User deposits wstETH into the Agent Treasury contract. Configures spending permissions (recipient whitelist, per-tx cap, time windows).
 2. **Think** — Agent reasons privately via Venice's no-data-retention inference API. Sensitive treasury decisions never leave the private compute layer.
-3. **Pay** — Agent converts yield to USDC and pays for services through Locus wallets on Base — auditable, capped, autonomous.
-4. **Dashboard** — Web UI to deploy agents, stake ETH, monitor yield accrual, track spending, and adjust permissions.
+3. **Swap** — Agent converts yield to USDC or VVV via Uniswap — paying for services or Venice inference directly.
+4. **Pay** — Agent pays for services through Locus wallets on Base — auditable, capped, autonomous.
+5. **Dashboard** — Web UI to deploy agents, stake ETH, monitor yield accrual, track spending, and adjust permissions.
 
 ## Key properties
 
@@ -28,4 +29,5 @@ A user stakes ETH into a treasury contract backed by wstETH. The contract enforc
 
 - [Lido](https://lido.fi) — wstETH staking and yield generation
 - [Venice](https://venice.ai) — Private, no-data-retention AI inference
+- [Uniswap](https://uniswap.org) — On-chain swaps (yield to USDC/VVV)
 - [Locus](https://locus.finance) — Agent-native payment infrastructure on Base
