@@ -1,16 +1,23 @@
 "use client";
 
+import Link from "next/link";
+
 export function Header() {
   return (
-    <header className="border-b border-zinc-800">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold">Yield Agent</h1>
-          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-400">
-            beta
-          </span>
-        </div>
-        <appkit-button />
+    <header className="mx-auto max-w-6xl px-6 py-6">
+      <div className="flex items-center justify-between">
+        <Link href="/" className="font-serif text-xl font-bold text-ink">
+          Yield Agent
+        </Link>
+        <nav className="flex items-center gap-8">
+          <Link
+            href="/dashboard"
+            className="font-mono text-sm uppercase tracking-wider text-ink-light transition-colors hover:text-ink"
+          >
+            Dashboard
+          </Link>
+          <appkit-button />
+        </nav>
       </div>
     </header>
   );
