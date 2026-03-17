@@ -29,9 +29,8 @@ const USDC_ABI = [
 
 const STEPS = [
   { id: "configure", label: "Configure" },
-  { id: "wallet", label: "Create Wallet" },
-  { id: "fund", label: "Fund" },
   { id: "deploy", label: "Deploy" },
+  { id: "fund", label: "Fund" },
 ] as const;
 
 type Step = (typeof STEPS)[number]["id"];
@@ -47,32 +46,50 @@ export function DeployAgent() {
   const [veniceModel, setVeniceModel] = useState(VENICE_MODELS[0].id);
   const [spendingCap, setSpendingCap] = useState("5");
   const [dailyLimit, setDailyLimit] = useState("10");
-  const [deployResult, setDeployResult] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+  const [telegramBotToken, setTelegramBotToken] = useState("");
+  const [telegramAllowedUsers, setTelegramAllowedUsers] = useState("");
+  const [fundAmount, setFundAmount] = useState("5");
+  const [funded, setFunded] = useState(false);
 
   const {
-    wallet,
-    walletReady,
+    deployInfo,
+    deployStatus,
     walletAddress,
-    balance,
     error,
     loading,
-    registerWallet,
-    pollWalletStatus,
-    checkBalance,
     deployAgent,
+    pollDeployStatus,
+    getAgentWallet,
   } = useAgentDeploy();
 
   const { sendTransactionAsync } = useSendTransaction();
 
-  const handleCreateWallet = async () => {
-    const result = await registerWallet(agentName);
-    if (result) {
-      // Poll until wallet is deployed
-      await pollWalletStatus(result.apiKey);
-      setStep("fund");
+  const handleDeploy = async () => {
+    const info = await deployAgent({
+      agentName,
+      veniceModel,
+      spendingCap,
+      dailyLimit,
+      telegramBotToken: telegramBotToken || undefined,
+      telegramAllowedUsers: telegramAllowedUsers || undefined,
+    });
+
+    if (info) {
+      // Poll until deployment succeeds
+      const result = await pollDeployStatus(info.serviceId, info.environmentId);
+
+      if (result.status === "SUCCESS") {
+        // Try to get wallet address from running agent
+        if (!result.walletAddress) {
+          // Retry a few times with delay
+          for (let i = 0; i < 6; i++) {
+            await new Promise((r) => setTimeout(r, 5000));
+            const addr = await getAgentWallet(info.domain);
+            if (addr) break;
+          }
+        }
+        setStep("fund");
+      }
     }
   };
 
@@ -80,11 +97,11 @@ export function DeployAgent() {
     if (!walletAddress) return;
 
     try {
-      // Send 5 USDC to the Locus wallet on Base
+      const amount = parseFloat(fundAmount) || 5;
       const data = encodeFunctionData({
         abi: USDC_ABI,
         functionName: "transfer",
-        args: [walletAddress as `0x${string}`, parseUnits("5", 6)],
+        args: [walletAddress as `0x${string}`, parseUnits(amount.toString(), 6)],
       });
 
       await sendTransactionAsync({
@@ -92,35 +109,9 @@ export function DeployAgent() {
         data,
       });
 
-      // Poll balance until funded
-      if (wallet) {
-        let funded = false;
-        for (let i = 0; i < 30; i++) {
-          const bal = await checkBalance(wallet.apiKey);
-          if (bal >= 5) {
-            funded = true;
-            break;
-          }
-          await new Promise((r) => setTimeout(r, 3000));
-        }
-        if (funded) {
-          setStep("deploy");
-        }
-      }
+      setFunded(true);
     } catch (err) {
       console.error("Fund failed:", err);
-    }
-  };
-
-  const handleDeploy = async () => {
-    const result = await deployAgent({
-      agentName,
-      veniceModel,
-      spendingCap,
-      dailyLimit,
-    });
-    if (result) {
-      setDeployResult(result);
     }
   };
 
@@ -234,9 +225,41 @@ export function DeployAgent() {
             </p>
           </div>
 
+          <div className="space-y-8 lg:col-span-2">
+            <h3 className="font-serif text-xl text-ink">Telegram (optional)</h3>
+            <div className="grid gap-8 lg:grid-cols-2">
+              <div>
+                <label className={labelClass}>Bot Token</label>
+                <input
+                  type="password"
+                  value={telegramBotToken}
+                  onChange={(e) => setTelegramBotToken(e.target.value)}
+                  placeholder="123456:ABC-DEF..."
+                  className={inputClass}
+                />
+                <p className="mt-2 text-xs text-ink-lighter">
+                  From @BotFather on Telegram
+                </p>
+              </div>
+              <div>
+                <label className={labelClass}>Allowed User IDs</label>
+                <input
+                  type="text"
+                  value={telegramAllowedUsers}
+                  onChange={(e) => setTelegramAllowedUsers(e.target.value)}
+                  placeholder="123456789, 987654321"
+                  className={inputClass}
+                />
+                <p className="mt-2 text-xs text-ink-lighter">
+                  Comma-separated Telegram user IDs
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="lg:col-span-2">
             <button
-              onClick={() => setStep("wallet")}
+              onClick={() => setStep("deploy")}
               disabled={!agentName}
               className="bg-ink px-12 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80 disabled:opacity-30"
             >
@@ -246,146 +269,39 @@ export function DeployAgent() {
         </div>
       )}
 
-      {/* Step 2: Create Locus Wallet */}
-      {step === "wallet" && (
+      {/* Step 2: Deploy */}
+      {step === "deploy" && !deployInfo && (
         <div className="mx-auto max-w-md">
-          <h3 className="font-serif text-2xl text-ink">
-            Create agent wallet.
-          </h3>
+          <h3 className="font-serif text-2xl text-ink">Deploy to Railway.</h3>
           <p className="mt-4 text-sm leading-relaxed text-ink-light">
-            We&apos;ll register a non-custodial smart wallet on Base for your
-            agent via Locus. The agent gets its own address, API key, and
-            spending controls — no manual setup needed.
-          </p>
-
-          <div className="mt-8 space-y-3 border-t border-cream-dark pt-8">
-            <div className="flex justify-between font-mono text-sm">
-              <span className="text-ink-lighter">Agent</span>
-              <span className="text-ink">{agentName}</span>
-            </div>
-            <div className="flex justify-between font-mono text-sm">
-              <span className="text-ink-lighter">Network</span>
-              <span className="text-ink">Base</span>
-            </div>
-            <div className="flex justify-between font-mono text-sm">
-              <span className="text-ink-lighter">Wallet type</span>
-              <span className="text-ink">ERC-4337 Smart Wallet</span>
-            </div>
-            <div className="flex justify-between font-mono text-sm">
-              <span className="text-ink-lighter">Gas</span>
-              <span className="text-ink">Sponsored by Locus</span>
-            </div>
-            {walletAddress && (
-              <div className="flex justify-between font-mono text-sm">
-                <span className="text-ink-lighter">Address</span>
-                <span className="text-ink">
-                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-10 flex gap-4">
-            <button
-              onClick={() => setStep("configure")}
-              className="border border-cream-dark px-8 py-4 font-mono text-sm uppercase tracking-wider text-ink-light transition-colors hover:border-ink hover:text-ink"
-            >
-              Back
-            </button>
-            <button
-              onClick={handleCreateWallet}
-              disabled={loading || walletReady}
-              className="bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80 disabled:opacity-30"
-            >
-              {loading
-                ? "Creating..."
-                : walletReady
-                  ? "\u2713 Wallet Ready"
-                  : "Create Wallet"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Fund */}
-      {step === "fund" && (
-        <div className="mx-auto max-w-md">
-          <h3 className="font-serif text-2xl text-ink">
-            Fund starter balance.
-          </h3>
-          <p className="mt-4 text-sm leading-relaxed text-ink-light">
-            Send 5 USDC to your agent&apos;s wallet on Base. The agent will use
-            this to autonomously acquire a Venice API key and begin operating.
-          </p>
-
-          <div className="mt-8 space-y-3 border-t border-cream-dark pt-8">
-            <div className="flex justify-between font-mono text-sm">
-              <span className="text-ink-lighter">Wallet</span>
-              <span className="text-ink">
-                {walletAddress
-                  ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
-                  : "—"}
-              </span>
-            </div>
-            <div className="flex justify-between font-mono text-sm">
-              <span className="text-ink-lighter">Amount</span>
-              <span className="text-ink">5.00 USDC</span>
-            </div>
-            <div className="flex justify-between font-mono text-sm">
-              <span className="text-ink-lighter">Network</span>
-              <span className="text-ink">Base</span>
-            </div>
-            <div className="flex justify-between font-mono text-sm">
-              <span className="text-ink-lighter">Balance</span>
-              <span className="text-ink">
-                {balance ? `${balance} USDC` : "0.00 USDC"}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-10 flex gap-4">
-            <button
-              onClick={() => setStep("wallet")}
-              className="border border-cream-dark px-8 py-4 font-mono text-sm uppercase tracking-wider text-ink-light transition-colors hover:border-ink hover:text-ink"
-            >
-              Back
-            </button>
-            <button
-              onClick={handleFund}
-              disabled={loading}
-              className="bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80 disabled:opacity-30"
-            >
-              {loading ? "Sending..." : "Send 5 USDC"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 4: Deploy */}
-      {step === "deploy" && !deployResult && (
-        <div className="mx-auto max-w-md">
-          <h3 className="font-serif text-2xl text-ink">Ready to deploy.</h3>
-          <p className="mt-4 text-sm text-ink-light">
-            Your agent will autonomously:
+            Your agent container will be deployed to Railway. It will
+            self-register with Locus, create its own smart wallet, and begin
+            operating autonomously.
           </p>
 
           <div className="mt-8 space-y-6">
             <div className="flex gap-4">
               <span className="font-mono text-sm text-ink-lighter">01</span>
               <span className="text-sm text-ink">
-                Purchase a Venice API key using its Locus balance
+                Deploy container with your configuration
               </span>
             </div>
             <div className="flex gap-4">
               <span className="font-mono text-sm text-ink-lighter">02</span>
               <span className="text-sm text-ink">
-                Configure Venice as its private inference provider
+                Self-register with Locus and create smart wallet
               </span>
             </div>
             <div className="flex gap-4">
               <span className="font-mono text-sm text-ink-lighter">03</span>
               <span className="text-sm text-ink">
-                Begin operating, funded by stETH yield
+                Purchase Venice API key using its Locus balance
+              </span>
+            </div>
+            <div className="flex gap-4">
+              <span className="font-mono text-sm text-ink-lighter">04</span>
+              <span className="text-sm text-ink">
+                Begin autonomous operation
               </span>
             </div>
           </div>
@@ -409,17 +325,17 @@ export function DeployAgent() {
               <span className="text-ink-lighter">Daily limit</span>
               <span className="text-ink">{dailyLimit} USDC/day</span>
             </div>
-            <div className="flex justify-between font-mono text-sm">
-              <span className="text-ink-lighter">Balance</span>
-              <span className="text-ink">
-                {balance ? `${balance} USDC` : "5.00 USDC"} {"\u2713"}
-              </span>
-            </div>
+            {telegramBotToken && (
+              <div className="flex justify-between font-mono text-sm">
+                <span className="text-ink-lighter">Telegram</span>
+                <span className="text-ink">Configured</span>
+              </div>
+            )}
           </div>
 
           <div className="mt-10 flex gap-4">
             <button
-              onClick={() => setStep("fund")}
+              onClick={() => setStep("configure")}
               className="border border-cream-dark px-8 py-4 font-mono text-sm uppercase tracking-wider text-ink-light transition-colors hover:border-ink hover:text-ink"
             >
               Back
@@ -435,50 +351,126 @@ export function DeployAgent() {
         </div>
       )}
 
-      {/* Deploy success */}
-      {step === "deploy" && deployResult && (
+      {/* Deploy in progress / success */}
+      {step === "deploy" && deployInfo && (
         <div className="mx-auto max-w-md">
-          <h3 className="font-serif text-2xl text-ink">Agent deployed.</h3>
+          <h3 className="font-serif text-2xl text-ink">
+            {deployStatus === "SUCCESS" ? "Agent deployed." : "Deploying..."}
+          </h3>
           <p className="mt-4 text-sm leading-relaxed text-ink-light">
-            Your agent is bootstrapping. It will acquire a Venice API key and
-            begin autonomous operation.
+            {deployStatus === "SUCCESS"
+              ? "Your agent is running. Continue to fund its wallet."
+              : "Your agent container is being built and deployed to Railway."}
           </p>
 
           <div className="mt-8 space-y-3 border-t border-cream-dark pt-8">
             <div className="flex justify-between font-mono text-sm">
-              <span className="text-ink-lighter">Agent ID</span>
-              <span className="text-ink">
-                {deployResult.agentId as string}
-              </span>
+              <span className="text-ink-lighter">Status</span>
+              <span className="text-ink">{deployStatus || "Starting..."}</span>
             </div>
+            <div className="flex justify-between font-mono text-sm">
+              <span className="text-ink-lighter">URL</span>
+              <span className="text-ink text-xs">{deployInfo.domain}</span>
+            </div>
+            {walletAddress && (
+              <div className="flex justify-between font-mono text-sm">
+                <span className="text-ink-lighter">Wallet</span>
+                <span className="text-ink">
+                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {deployStatus === "SUCCESS" && (
+            <div className="mt-10">
+              <button
+                onClick={() => setStep("fund")}
+                className="bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80"
+              >
+                Continue to Fund
+              </button>
+            </div>
+          )}
+
+          {loading && (
+            <div className="mt-8">
+              <div className="h-1 w-full overflow-hidden rounded bg-cream-dark">
+                <div className="h-full w-1/3 animate-pulse rounded bg-ink/30" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Step 3: Fund */}
+      {step === "fund" && (
+        <div className="mx-auto max-w-md">
+          <h3 className="font-serif text-2xl text-ink">
+            {funded ? "Agent funded." : "Fund starter balance."}
+          </h3>
+          <p className="mt-4 text-sm leading-relaxed text-ink-light">
+            {funded
+              ? "Your agent is funded and operational."
+              : "Send USDC to your agent\u2019s wallet on Base. The agent will use this to autonomously acquire a Venice API key and begin operating."}
+          </p>
+
+          <div className="mt-8 space-y-3 border-t border-cream-dark pt-8">
             <div className="flex justify-between font-mono text-sm">
               <span className="text-ink-lighter">Wallet</span>
               <span className="text-ink">
-                {(deployResult.walletAddress as string)?.slice(0, 6)}...
-                {(deployResult.walletAddress as string)?.slice(-4)}
+                {walletAddress
+                  ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
+                  : "Fetching..."}
               </span>
             </div>
+            {!funded && (
+              <div className="flex justify-between font-mono text-sm">
+                <span className="text-ink-lighter">Amount</span>
+                <div className="flex items-baseline gap-2">
+                  <input
+                    type="number"
+                    value={fundAmount}
+                    onChange={(e) => setFundAmount(e.target.value)}
+                    className="w-16 border-b border-cream-dark bg-transparent text-right text-sm text-ink focus:border-ink focus:outline-none"
+                  />
+                  <span className="text-ink">USDC</span>
+                </div>
+              </div>
+            )}
             <div className="flex justify-between font-mono text-sm">
-              <span className="text-ink-lighter">Status</span>
-              <span className="text-ink">Bootstrapping...</span>
+              <span className="text-ink-lighter">Network</span>
+              <span className="text-ink">Base</span>
             </div>
+            {deployInfo && (
+              <div className="flex justify-between font-mono text-sm">
+                <span className="text-ink-lighter">Agent URL</span>
+                <span className="text-ink text-xs">{deployInfo.domain}</span>
+              </div>
+            )}
           </div>
 
-          {wallet?.claimUrl && (
-            <div className="mt-8 rounded border border-cream-dark p-4">
-              <p className="text-xs text-ink-lighter">
-                Claim your agent dashboard:
-              </p>
-              <a
-                href={wallet.claimUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-1 block font-mono text-xs text-ink underline"
+          <div className="mt-10 flex gap-4">
+            <button
+              onClick={() => setStep("deploy")}
+              className="border border-cream-dark px-8 py-4 font-mono text-sm uppercase tracking-wider text-ink-light transition-colors hover:border-ink hover:text-ink"
+            >
+              Back
+            </button>
+            {!funded ? (
+              <button
+                onClick={handleFund}
+                disabled={loading || !walletAddress}
+                className="bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80 disabled:opacity-30"
               >
-                {wallet.claimUrl}
-              </a>
-            </div>
-          )}
+                {loading ? "Sending..." : `Send ${fundAmount} USDC`}
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 px-8 py-4 font-mono text-sm text-ink">
+                {"\u2713"} Funded
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
