@@ -143,6 +143,21 @@ else
   echo "[init] Workspace already exists at $OPENCLAW_WORKSPACE_DIR"
 fi
 
+# ── Telegram channel ─────────────────────────────────────────────────────────
+# OpenClaw reads TELEGRAM_BOT_TOKEN from env and auto-configures the channel.
+# DM policy defaults to "pairing" — approve via `openclaw pairing approve telegram <CODE>`.
+# To use allowlist mode instead, set TELEGRAM_ALLOWED_USERS to comma-separated user IDs.
+if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then
+  export TELEGRAM_BOT_TOKEN
+  if [ -n "${TELEGRAM_ALLOWED_USERS:-}" ]; then
+    echo "[init] Telegram: configured (allowlist mode)"
+  else
+    echo "[init] Telegram: configured (pairing mode — DM bot, then approve via logs)"
+  fi
+else
+  echo "[init] Telegram: not configured (set TELEGRAM_BOT_TOKEN in .env)"
+fi
+
 echo "--------------------------------------------"
 echo "[init] Agent:    $AGENT_NAME"
 if [ -n "$VENICE_API_KEY" ]; then
@@ -151,6 +166,7 @@ else
   echo "[init] Provider: Locus-wrapped OpenAI (bootstrap)"
 fi
 echo "[init] Locus:    $([ -n "$LOCUS_API_KEY" ] && echo "configured (${LOCUS_API_KEY:0:15}...)" || echo 'NOT configured')"
+echo "[init] Telegram: $([ -n "${TELEGRAM_BOT_TOKEN:-}" ] && echo 'configured' || echo 'not configured')"
 echo "--------------------------------------------"
 
 # ── Patch upstream entrypoint for single-container mode ──────────────────────
