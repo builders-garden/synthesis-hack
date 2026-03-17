@@ -17,6 +17,7 @@ contract YieldVaultFactory is Ownable {
 
     address public immutable implementation;
     bool public paused;
+    uint256 public constant MAX_VAULTS_PER_AGENT = 50;
 
     mapping(address => address) public vaults;
     address[] public allVaults;
@@ -42,6 +43,7 @@ contract YieldVaultFactory is Ownable {
     error ZeroAddress();
     error InvalidYieldShare();
     error NotVault();
+    error AgentVaultLimitReached();
 
     // ──────────────────────────────────────────────
     //  Constructor
@@ -69,6 +71,7 @@ contract YieldVaultFactory is Ownable {
         if (vaults[msg.sender] != address(0)) revert VaultAlreadyExists();
         if (agent == address(0)) revert ZeroAddress();
         if (yieldShareBps > 10_000) revert InvalidYieldShare();
+        if (_agentVaults[agent].length >= MAX_VAULTS_PER_AGENT) revert AgentVaultLimitReached();
 
         vault = implementation.clone();
         YieldVault(vault).initialize(address(this), msg.sender, agent, yieldShareBps, frequency);
@@ -109,6 +112,7 @@ contract YieldVaultFactory is Ownable {
         _removeAgentVault(oldAgent, msg.sender);
 
         // Add vault to new agent's list.
+        if (_agentVaults[newAgent].length >= MAX_VAULTS_PER_AGENT) revert AgentVaultLimitReached();
         _agentVaults[newAgent].push(msg.sender);
 
         emit AgentUpdated(msg.sender, oldAgent, newAgent);

@@ -23,6 +23,9 @@ contract YieldVault {
     address public constant ORACLE = 0xB88BAc61a4Ca37C43a3725912B1f472c9A5bc061;
     uint256 public constant ORACLE_STALENESS = 90_000; // 25 hours
     uint256 public constant BPS_DENOMINATOR = 10_000;
+    uint256 public constant MIN_ORACLE_RATE = 0.5e18;
+    uint256 public constant MAX_ORACLE_RATE = 1.5e18;
+    uint8 public constant EXPECTED_ORACLE_DECIMALS = 18;
 
     // ──────────────────────────────────────────────
     //  State
@@ -39,7 +42,7 @@ contract YieldVault {
     address public agentWallet;
     uint16 public yieldShareBps;
     uint32 public withdrawalFrequency;
-    uint32 public lastAgentWithdrawal;
+    uint256 public lastAgentWithdrawal;
 
     // Safety
     bool public paused;
@@ -77,6 +80,8 @@ contract YieldVault {
     error CooldownNotElapsed();
     error StaleOracle();
     error InvalidOracleAnswer();
+    error OraclePriceOutOfBounds();
+    error InvalidOracleDecimals();
     error InvalidYieldShare();
     error NothingToWithdraw();
 
@@ -170,16 +175,20 @@ contract YieldVault {
         emit YieldWithdrawn(owner, wstETHAmount);
     }
 
-    /// @notice Emergency exit: withdraw everything. Works even when paused.
+    /// @notice Emergency exit: withdraw principal + accrued yield. Works even when paused.
+    ///         Force-fed tokens (direct transfers) are left in the contract.
     function exit() external onlyOwner nonReentrant {
-        uint256 balance = IERC20(WSTETH).balanceOf(address(this));
-        if (balance == 0) revert NothingToWithdraw();
+        uint256 currentRate = _getCurrentRate();
+        uint256 principalWstETH = principalStETH.mulDiv(1e18, currentRate);
+        uint256 yieldWstETH = getAccruedYieldInWstETH();
+        uint256 totalOwed = principalWstETH + yieldWstETH;
+        if (totalOwed == 0) revert NothingToWithdraw();
 
         principalStETH = 0;
 
-        IERC20(WSTETH).safeTransfer(owner, balance);
+        IERC20(WSTETH).safeTransfer(owner, totalOwed);
 
-        emit PrincipalWithdrawn(owner, balance);
+        emit PrincipalWithdrawn(owner, totalOwed);
     }
 
     /// @notice Update agent wallet, yield share, and withdrawal frequency.
@@ -219,7 +228,7 @@ contract YieldVault {
     function agentWithdraw(uint256 wstETHAmount) external whenNotPaused nonReentrant {
         if (msg.sender != agentWallet) revert NotAgent();
         if (wstETHAmount == 0) revert ZeroAmount();
-        if (block.timestamp < uint256(lastAgentWithdrawal) + uint256(withdrawalFrequency)) {
+        if (block.timestamp < lastAgentWithdrawal + uint256(withdrawalFrequency)) {
             revert CooldownNotElapsed();
         }
 
@@ -227,7 +236,7 @@ contract YieldVault {
         uint256 budget = yieldWstETH.mulDiv(yieldShareBps, BPS_DENOMINATOR);
         if (wstETHAmount > budget) revert ExceedsBudget();
 
-        lastAgentWithdrawal = uint32(block.timestamp);
+        lastAgentWithdrawal = block.timestamp;
 
         // principalStETH unchanged — agent only touches yield
         IERC20(WSTETH).safeTransfer(agentWallet, wstETHAmount);
@@ -256,7 +265,7 @@ contract YieldVault {
     /// @notice Returns the wstETH amount the agent can withdraw right now.
     ///         Returns 0 if the cooldown has not elapsed.
     function getAgentBudget() external view returns (uint256) {
-        if (block.timestamp < uint256(lastAgentWithdrawal) + uint256(withdrawalFrequency)) return 0;
+        if (block.timestamp < lastAgentWithdrawal + uint256(withdrawalFrequency)) return 0;
 
         uint256 yieldWstETH = getAccruedYieldInWstETH();
         return yieldWstETH.mulDiv(yieldShareBps, BPS_DENOMINATOR);
@@ -280,10 +289,15 @@ contract YieldVault {
     // ──────────────────────────────────────────────
 
     function _getCurrentRate() internal view returns (uint256) {
-        (, int256 answer,, uint256 updatedAt,) = IAggregatorV3(ORACLE).latestRoundData();
+        if (IAggregatorV3(ORACLE).decimals() != EXPECTED_ORACLE_DECIMALS) revert InvalidOracleDecimals();
+        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
+            IAggregatorV3(ORACLE).latestRoundData();
         if (answer <= 0) revert InvalidOracleAnswer();
+        if (answeredInRound < roundId) revert InvalidOracleAnswer();
         if (block.timestamp - updatedAt > ORACLE_STALENESS) revert StaleOracle();
-        return uint256(answer);
+        uint256 rate = uint256(answer);
+        if (rate < MIN_ORACLE_RATE || rate > MAX_ORACLE_RATE) revert OraclePriceOutOfBounds();
+        return rate;
     }
 }
 

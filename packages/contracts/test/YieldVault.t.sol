@@ -641,7 +641,8 @@ contract YieldVaultTest is Test {
         vm.prank(user);
         vault.exit();
 
-        assertEq(IERC20(WSTETH).balanceOf(address(vault)), 0);
+        // exit() now computes principal+yield via math, so rounding dust (≤ 2 wei) may remain
+        assertApproxEqAbs(IERC20(WSTETH).balanceOf(address(vault)), 0, 2);
         assertEq(vault.principalStETH(), 0);
     }
 
@@ -740,6 +741,7 @@ contract YieldVaultTest is Test {
         vm.prank(user);
         vault.exit();
 
-        assertEq(IERC20(WSTETH).balanceOf(address(vault)), 0);
+        // exit() computes principal+yield via math, so rounding dust (≤ 2 wei) may remain
+        assertApproxEqAbs(IERC20(WSTETH).balanceOf(address(vault)), 0, 2);
     }
 }
