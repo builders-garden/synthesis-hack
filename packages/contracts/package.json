@@ -2,8 +2,10 @@
   "name": "@synthesis-hack/contracts",
   "version": "0.0.1",
   "private": true,
-  "main": "src/index.ts",
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts"
+    "build": "forge build",
+    "test": "forge test -vvv",
+    "lint": "forge fmt --check",
+    "deploy": "forge script script/Deploy.s.sol --rpc-url $BASE_RPC_URL --broadcast --verify"
   }
 }

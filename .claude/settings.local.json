@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/francesco/Documents/hack-lido/synthesis-hack status packages/contracts/package.json)",
+      "Bash(git -C /Users/francesco/Documents/hack-lido/synthesis-hack log --oneline -5 -- packages/contracts/package.json)",
+      "Bash(git -C /Users/francesco/Documents/hack-lido/synthesis-hack show HEAD:packages/contracts/package.json)",
+      "Bash(tree:*)",
+      "Bash(git -C /Users/francesco/Documents/hack-lido/synthesis-hack show HEAD:packages/contracts/src/index.ts)",
+      "Bash(forge build:*)",
+      "Bash(pnpm ls:*)",
+      "Bash(cd:*)",
+      "Bash(BASE_RPC_URL=https://mainnet.base.org forge test:*)",
+      "Bash(curl:*)"
+    ]
+  }
+}
