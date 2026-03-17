@@ -187,9 +187,15 @@ contract YieldVault {
         if (_agent == address(0)) revert ZeroAddress();
         if (_yieldShareBps > BPS_DENOMINATOR) revert InvalidYieldShare();
 
+        address oldAgent = agentWallet;
         agentWallet = _agent;
         yieldShareBps = _yieldShareBps;
         withdrawalFrequency = _frequency;
+
+        // Sync factory mapping if agent changed.
+        if (_agent != oldAgent) {
+            IYieldVaultFactory(factory).onAgentUpdated(oldAgent, _agent);
+        }
 
         emit SettingsUpdated(_agent, _yieldShareBps, _frequency);
     }
@@ -281,7 +287,8 @@ contract YieldVault {
     }
 }
 
-/// @dev Minimal interface the vault uses to check factory-level pause.
+/// @dev Minimal interface the vault uses to interact with the factory.
 interface IYieldVaultFactory {
     function paused() external view returns (bool);
+    function onAgentUpdated(address oldAgent, address newAgent) external;
 }

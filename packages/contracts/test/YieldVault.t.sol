@@ -645,6 +645,64 @@ contract YieldVaultTest is Test {
         assertEq(vault.principalStETH(), 0);
     }
 
+    // ════════════════════════════════════════════
+    //  Agent vault discovery
+    // ════════════════════════════════════════════
+
+    function test_getAgentVaultsAfterCreate() public view {
+        address[] memory vaults = factory.getAgentVaults(agent);
+        assertEq(vaults.length, 1);
+        assertEq(vaults[0], address(vault));
+    }
+
+    function test_getAgentVaultsMultipleOwners() public {
+        // A second user creates a vault with the same agent.
+        address user2 = makeAddr("user2");
+        vm.prank(user2);
+        address vault2 = factory.createVault(agent, 3_000, 1 days);
+
+        address[] memory vaults = factory.getAgentVaults(agent);
+        assertEq(vaults.length, 2);
+        assertEq(vaults[0], address(vault));
+        assertEq(vaults[1], vault2);
+    }
+
+    function test_agentMappingSyncsOnUpdateSettings() public {
+        address newAgent = makeAddr("newAgent");
+
+        // Before: original agent has 1 vault, newAgent has 0.
+        assertEq(factory.getAgentVaults(agent).length, 1);
+        assertEq(factory.getAgentVaults(newAgent).length, 0);
+
+        vm.prank(user);
+        vault.updateSettings(newAgent, 5_000, 7 days);
+
+        // After: original agent has 0 vaults, newAgent has 1.
+        assertEq(factory.getAgentVaults(agent).length, 0);
+        address[] memory newVaults = factory.getAgentVaults(newAgent);
+        assertEq(newVaults.length, 1);
+        assertEq(newVaults[0], address(vault));
+    }
+
+    function test_updateSettingsSameAgentNoDoubleEntry() public {
+        // Updating settings without changing the agent should not duplicate.
+        vm.prank(user);
+        vault.updateSettings(agent, 7_500, 1 days);
+
+        address[] memory vaults = factory.getAgentVaults(agent);
+        assertEq(vaults.length, 1);
+    }
+
+    function test_onAgentUpdatedRevertsForNonVault() public {
+        vm.prank(stranger);
+        vm.expectRevert();
+        factory.onAgentUpdated(agent, makeAddr("fake"));
+    }
+
+    // ════════════════════════════════════════════
+    //  Integration – full lifecycle
+    // ════════════════════════════════════════════
+
     function test_multipleDepositsAndYieldCycles() public {
         // First deposit
         _deposit(20 ether);
