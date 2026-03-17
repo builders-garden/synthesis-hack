@@ -20,78 +20,43 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Generate OpenClaw agent configuration
-  const openclawConfig = {
-    agents: {
-      defaults: {
-        workspace: `~/.openclaw/workspaces/${body.agentName}`,
-      },
-      list: [
-        {
-          id: body.agentName,
-          default: true,
-        },
-      ],
-    },
-    providers: {
-      venice: {
-        type: "openai-compatible",
-        baseUrl: "https://api.venice.ai/api/v1",
-        // Agent will acquire this key autonomously via Locus
-        apiKey: "PENDING_AUTONOMOUS_ACQUISITION",
-      },
-    },
-    models: {
-      default: body.veniceModel,
-    },
-    skills: {
-      locus: {
-        enabled: true,
-        config: {
-          apiKey: body.locusApiKey,
-          apiBase: "https://beta-api.paywithlocus.com/api",
-          walletAddress: body.ownerAddress,
-          spendingCap: body.spendingCap,
-          dailyLimit: body.dailyLimit,
-        },
-      },
-    },
+  // Environment variables for the agent container
+  const envVars = {
+    AGENT_NAME: body.agentName,
+    VENICE_MODEL: body.veniceModel || "venice/llama-3.3-70b",
+    VENICE_API_KEY: "", // Agent will acquire this autonomously
+    LOCUS_API_KEY: body.locusApiKey,
+    LOCUS_WALLET_ADDRESS: body.ownerAddress,
+    LOCUS_PRIVATE_KEY: body.ownerPrivateKey,
+    SETUP_PASSWORD: crypto.randomUUID().replace(/-/g, "").slice(0, 32),
+    SPENDING_CAP: body.spendingCap || "5",
+    DAILY_LIMIT: body.dailyLimit || "10",
   };
 
-  // Generate the bootstrap skill that will:
-  // 1. Use Locus to acquire Venice API key
-  // 2. Configure Venice as inference provider
-  // 3. Begin autonomous operation
-  const bootstrapSkill = `---
-name: bootstrap
-description: Bootstrap the agent by acquiring a Venice API key using Locus wallet funds.
-version: 1.0.0
-requires:
-  env: ["LOCUS_API_KEY"]
----
-
-# Bootstrap Skill
-
-On first run, perform the following steps:
-
-1. Check Locus wallet balance using the Locus API.
-2. If balance >= 5 USDC, acquire a Venice AI API key:
-   - Visit https://venice.ai/settings/api and create a new API key
-   - Or use Locus wrapped APIs if Venice is available as a wrapped provider
-3. Store the Venice API key securely.
-4. Configure Venice as the inference provider with base URL https://api.venice.ai/api/v1
-5. Confirm the agent is operational by making a test inference call.
-6. Report status back via Locus feedback endpoint.
-`;
-
-  // TODO: Actually deploy the OpenClaw gateway with this config
-  // For now, return the config for the frontend to display/download
+  // TODO: Trigger Railway deployment via API
+  // For now, return the env vars so the user can deploy manually
+  // Railway API: https://docs.railway.com/reference/public-api
+  //
+  // Future: use Railway CLI or API to:
+  // 1. Create a new service from the apps/agent Dockerfile
+  // 2. Set env vars
+  // 3. Attach a persistent volume at /data
+  // 4. Deploy
 
   return NextResponse.json({
-    config: openclawConfig,
-    bootstrapSkill,
     agentId: body.agentName,
     walletAddress: body.ownerAddress,
-    status: "config_generated",
+    status: "config_ready",
+    envVars,
+    deployInstructions: {
+      platform: "railway",
+      steps: [
+        "cd apps/agent",
+        "railway link",
+        "railway volume add --mount /data",
+        `Set environment variables from the envVars object`,
+        "railway up",
+      ],
+    },
   });
 }

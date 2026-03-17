@@ -1,0 +1,39 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": "/data/workspace-agent"
+    },
+    "list": [
+      {
+        "id": "${AGENT_NAME}",
+        "default": true
+      }
+    ],
+    "subagents": {
+      "maxSpawnDepth": 2,
+      "maxChildrenPerAgent": 3,
+      "maxConcurrent": 2,
+      "archiveAfterMinutes": 60
+    }
+  },
+  "providers": {
+    "venice": {
+      "type": "openai-compatible",
+      "baseUrl": "https://api.venice.ai/api/v1",
+      "apiKey": "${VENICE_API_KEY}"
+    }
+  },
+  "models": {
+    "default": "${VENICE_MODEL}"
+  },
+  "tools": {
+    "agentToAgent": true
+  },
+  "cron": {
+    "enabled": true,
+    "sessionRetention": "24h"
+  },
+  "gateway": {
+    "trustedProxies": ["127.0.0.1"]
+  }
+}
