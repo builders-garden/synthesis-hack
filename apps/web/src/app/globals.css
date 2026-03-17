@@ -10,8 +10,8 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-serif);
-  --color-cream: #d9d1c5;
-  --color-cream-dark: #c9c0b4;
+  --color-cream: #f5f0e8;
+  --color-cream-dark: #e8e0d4;
   --color-ink: #1a1a1a;
   --color-ink-light: #6b6560;
   --color-ink-lighter: #9c958e;
@@ -54,19 +54,19 @@
 }
 
 :root {
-  --background: #d9d1c5;
+  --background: #f5f0e8;
   --foreground: #1a1a1a;
-  --card: #d9d1c5;
+  --card: #f5f0e8;
   --card-foreground: #1a1a1a;
-  --popover: #d9d1c5;
+  --popover: #f5f0e8;
   --popover-foreground: #1a1a1a;
   --primary: #1a1a1a;
-  --primary-foreground: #d9d1c5;
-  --secondary: #c9c0b4;
+  --primary-foreground: #f5f0e8;
+  --secondary: #e8e0d4;
   --secondary-foreground: #1a1a1a;
-  --muted: #c9c0b4;
+  --muted: #e8e0d4;
   --muted-foreground: #6b6560;
-  --accent: #c9c0b4;
+  --accent: #e8e0d4;
   --accent-foreground: #1a1a1a;
   --destructive: oklch(0.577 0.245 27.325);
   --border: #d4cdc4;
