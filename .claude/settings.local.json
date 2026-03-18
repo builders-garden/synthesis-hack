@@ -10,7 +10,13 @@
       "Bash(pnpm ls:*)",
       "Bash(cd:*)",
       "Bash(BASE_RPC_URL=https://mainnet.base.org forge test:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git push:*)",
+      "Bash(find /Users/limone/Documents/builders-garden/synthesis-hack -maxdepth 3 -type f -name vercel.json -o -name vercel-env.json -o -name *.env* -path */apps/web/*)",
+      "WebFetch(domain:docs.railway.com)",
+      "Bash(pnpm --filter web exec tsc --noEmit --pretty)",
+      "WebSearch",
+      "WebFetch(domain:station.railway.com)"
     ]
   }
 }
