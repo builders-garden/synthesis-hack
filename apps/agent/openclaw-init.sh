@@ -15,6 +15,9 @@ export AUTH_PASSWORD="${SETUP_PASSWORD}"
 export OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-/data/.openclaw}"
 export OPENCLAW_WORKSPACE_DIR="/data/workspace-agent"
 
+# Ensure /data exists (volume mount may not create it on first boot)
+mkdir -p /data
+
 LOCUS_CREDS_FILE="/data/.locus-credentials.json"
 
 # Generate gateway token if not provided

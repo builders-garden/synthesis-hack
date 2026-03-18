@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAgentDeploy } from "@/hooks/use-agent-deploy";
 import { useSendTransaction } from "wagmi";
 import { parseUnits, encodeFunctionData } from "viem";
+import { AgentMonitor } from "@/components/agent-monitor";
 
 const VENICE_MODELS = [
   { id: "venice/zai-org-glm-5", label: "GLM-5 (Private)" },
@@ -31,6 +32,7 @@ const STEPS = [
   { id: "configure", label: "Configure" },
   { id: "deploy", label: "Deploy" },
   { id: "fund", label: "Fund" },
+  { id: "monitor", label: "Monitor" },
 ] as const;
 
 type Step = (typeof STEPS)[number]["id"];
@@ -110,6 +112,7 @@ export function DeployAgent() {
       });
 
       setFunded(true);
+      setStep("monitor");
     } catch (err) {
       console.error("Fund failed:", err);
     }
@@ -407,12 +410,11 @@ export function DeployAgent() {
       {step === "fund" && (
         <div className="mx-auto max-w-md">
           <h3 className="font-serif text-2xl text-ink">
-            {funded ? "Agent funded." : "Fund starter balance."}
+            Fund starter balance.
           </h3>
           <p className="mt-4 text-sm leading-relaxed text-ink-light">
-            {funded
-              ? "Your agent is funded and operational."
-              : "Send USDC to your agent\u2019s wallet on Base. The agent will use this to autonomously acquire a Venice API key and begin operating."}
+            Send USDC to your agent{"\u2019"}s wallet on Base. The agent will use
+            this to autonomously acquire a Venice API key and begin operating.
           </p>
 
           <div className="mt-8 space-y-3 border-t border-cream-dark pt-8">
@@ -424,20 +426,18 @@ export function DeployAgent() {
                   : "Fetching..."}
               </span>
             </div>
-            {!funded && (
-              <div className="flex justify-between font-mono text-sm">
-                <span className="text-ink-lighter">Amount</span>
-                <div className="flex items-baseline gap-2">
-                  <input
-                    type="number"
-                    value={fundAmount}
-                    onChange={(e) => setFundAmount(e.target.value)}
-                    className="w-16 border-b border-cream-dark bg-transparent text-right text-sm text-ink focus:border-ink focus:outline-none"
-                  />
-                  <span className="text-ink">USDC</span>
-                </div>
+            <div className="flex justify-between font-mono text-sm">
+              <span className="text-ink-lighter">Amount</span>
+              <div className="flex items-baseline gap-2">
+                <input
+                  type="number"
+                  value={fundAmount}
+                  onChange={(e) => setFundAmount(e.target.value)}
+                  className="w-16 border-b border-cream-dark bg-transparent text-right text-sm text-ink focus:border-ink focus:outline-none"
+                />
+                <span className="text-ink">USDC</span>
               </div>
-            )}
+            </div>
             <div className="flex justify-between font-mono text-sm">
               <span className="text-ink-lighter">Network</span>
               <span className="text-ink">Base</span>
@@ -457,21 +457,25 @@ export function DeployAgent() {
             >
               Back
             </button>
-            {!funded ? (
-              <button
-                onClick={handleFund}
-                disabled={loading || !walletAddress}
-                className="bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80 disabled:opacity-30"
-              >
-                {loading ? "Sending..." : `Send ${fundAmount} USDC`}
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 px-8 py-4 font-mono text-sm text-ink">
-                {"\u2713"} Funded
-              </div>
-            )}
+            <button
+              onClick={handleFund}
+              disabled={loading || !walletAddress}
+              className="bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80 disabled:opacity-30"
+            >
+              {loading ? "Sending..." : `Send ${fundAmount} USDC`}
+            </button>
           </div>
         </div>
+      )}
+
+      {/* Step 4: Monitor */}
+      {step === "monitor" && walletAddress && deployInfo && (
+        <AgentMonitor
+          agentName={agentName}
+          walletAddress={walletAddress}
+          domain={deployInfo.domain}
+          fundedAmount={parseFloat(fundAmount) || 5}
+        />
       )}
     </div>
   );
