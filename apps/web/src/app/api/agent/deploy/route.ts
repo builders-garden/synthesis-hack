@@ -54,11 +54,14 @@ export async function POST(req: NextRequest) {
       DAILY_LIMIT: body.dailyLimit || "10",
     };
 
-    if (body.telegramBotToken) {
-      envVars.TELEGRAM_BOT_TOKEN = body.telegramBotToken;
+    // Telegram: use frontend values, fall back to server env vars, skip if neither
+    const telegramToken = body.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN;
+    const telegramUsers = body.telegramAllowedUsers || process.env.TELEGRAM_ALLOWED_USERS;
+    if (telegramToken) {
+      envVars.TELEGRAM_BOT_TOKEN = telegramToken;
     }
-    if (body.telegramAllowedUsers) {
-      envVars.TELEGRAM_ALLOWED_USERS = body.telegramAllowedUsers;
+    if (telegramUsers) {
+      envVars.TELEGRAM_ALLOWED_USERS = telegramUsers;
     }
 
     await setEnvVars(projectId, serviceId, environmentId, envVars);
