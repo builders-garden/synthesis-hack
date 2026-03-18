@@ -22,8 +22,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Yield Agent",
-  description: "Self-funded autonomous AI agent powered by stETH yield",
+  title: "OpenClaw Lending",
+  description: "Microlending on Celo with Self-verified identity",
 };
 
 export default async function RootLayout({

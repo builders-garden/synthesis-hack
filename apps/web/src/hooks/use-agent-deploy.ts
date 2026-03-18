@@ -30,9 +30,6 @@ export function useAgentDeploy() {
   const deployAgent = useCallback(
     async (config: {
       agentName: string;
-      veniceModel: string;
-      spendingCap: string;
-      dailyLimit: string;
       telegramBotToken?: string;
       telegramAllowedUsers?: string;
     }) => {

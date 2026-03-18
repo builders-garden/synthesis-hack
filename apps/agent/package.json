@@ -8,6 +8,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@selfxyz/agent-sdk": "^0.2.1",
     "@types/express": "^5.0.6",
     "express": "^5.2.1",
     "openclaw": "^2026.3.13",
