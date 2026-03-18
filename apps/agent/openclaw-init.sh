@@ -146,6 +146,15 @@ else
   fi
 fi
 
+# ── Render OpenClaw config from template (first boot only) ───────────────────
+if [ ! -s "$OPENCLAW_STATE_DIR/openclaw.json" ]; then
+  mkdir -p "$OPENCLAW_STATE_DIR"
+  envsubst < /app/custom/config/openclaw.template.json > "$OPENCLAW_STATE_DIR/openclaw.json"
+  echo "[init] Rendered openclaw.json from template"
+else
+  echo "[init] openclaw.json already exists — skipping template render"
+fi
+
 # ── Copy workspace files (first boot only) ──────────────────────────────────
 if [ ! -d "$OPENCLAW_WORKSPACE_DIR" ]; then
   echo "[init] Setting up workspace..."
@@ -165,16 +174,41 @@ else
 fi
 
 # ── Telegram channel ─────────────────────────────────────────────────────────
-# OpenClaw reads TELEGRAM_BOT_TOKEN from env and auto-configures the channel.
-# DM policy defaults to "pairing" — approve via `openclaw pairing approve telegram <CODE>`.
-# To use allowlist mode instead, set TELEGRAM_ALLOWED_USERS to comma-separated user IDs.
+# Patch Telegram config into openclaw.json (same approach as farclaw/farcon-claw).
+# TELEGRAM_BOT_TOKEN is read from env by OpenClaw.
+# TELEGRAM_ALLOWED_USERS sets allowlist mode so no manual pairing is needed.
 if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then
   export TELEGRAM_BOT_TOKEN
-  if [ -n "${TELEGRAM_ALLOWED_USERS:-}" ]; then
-    echo "[init] Telegram: configured (allowlist mode)"
-  else
-    echo "[init] Telegram: configured (pairing mode — DM bot, then approve via logs)"
-  fi
+
+  # Patch openclaw.json to set dmPolicy and allowFrom
+  TELEGRAM_ALLOWED_USERS="${TELEGRAM_ALLOWED_USERS:-}" \
+  node <<'PATCH_EOF'
+const fs = require("fs");
+const configPath = process.env.OPENCLAW_STATE_DIR + "/openclaw.json";
+if (!fs.existsSync(configPath)) process.exit(0);
+
+const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+config.channels = config.channels || {};
+config.channels.telegram = config.channels.telegram || {};
+config.channels.telegram.enabled = true;
+
+const users = (process.env.TELEGRAM_ALLOWED_USERS || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
+
+if (users.length > 0) {
+  config.channels.telegram.dmPolicy = "allowlist";
+  config.channels.telegram.allowFrom = users;
+  console.log("[init] Telegram: configured (allowlist mode, users: " + users.join(", ") + ")");
+} else {
+  config.channels.telegram.dmPolicy = "paired";
+  config.channels.telegram.allowFrom = [];
+  console.log("[init] Telegram: configured (pairing mode)");
+}
+
+fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf8");
+PATCH_EOF
 else
   echo "[init] Telegram: not configured (set TELEGRAM_BOT_TOKEN in .env)"
 fi

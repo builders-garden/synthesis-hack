@@ -29,6 +29,13 @@
   "tools": {
     "agentToAgent": true
   },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "dmPolicy": "paired",
+      "allowFrom": []
+    }
+  },
   "cron": {
     "enabled": true,
     "sessionRetention": "24h"
