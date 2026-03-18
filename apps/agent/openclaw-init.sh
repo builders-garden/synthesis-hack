@@ -38,15 +38,22 @@ if [ -z "$LOCUS_API_KEY" ]; then
     export LOCUS_API_KEY
   else
     echo "[init] No LOCUS_API_KEY set — self-registering with Locus beta..."
-    REG_RESPONSE="$(curl -sf -X POST https://beta-api.paywithlocus.com/api/register \
-      -H "Content-Type: application/json" \
-      -d "{\"name\": \"$AGENT_NAME\"}" 2>&1)" || {
-      echo "[init] ERROR: Locus registration failed"
-      echo "[init] Response: $REG_RESPONSE"
-      echo "[init] Set LOCUS_API_KEY manually in .env and restart"
-      # Continue without Locus — agent will boot but can't pay for anything
+    REG_RESPONSE=""
+    BACKOFF=5
+    for attempt in $(seq 1 5); do
+      REG_RESPONSE="$(curl -sf -X POST https://beta-api.paywithlocus.com/api/register \
+        -H "Content-Type: application/json" \
+        -d "{\"name\": \"$AGENT_NAME\"}" 2>&1)" && break
+      echo "[init] Registration attempt $attempt/5 failed — retrying in ${BACKOFF}s..."
+      sleep "$BACKOFF"
+      BACKOFF=$((BACKOFF * 2))
       REG_RESPONSE=""
-    }
+    done
+
+    if [ -z "$REG_RESPONSE" ]; then
+      echo "[init] WARNING: Locus registration failed after 5 attempts"
+      echo "[init] Agent will boot without Locus — set LOCUS_API_KEY manually to fix"
+    fi
 
     if [ -n "$REG_RESPONSE" ]; then
       REG_SUCCESS="$(echo "$REG_RESPONSE" | jq -r '.success // false')"
@@ -122,9 +129,9 @@ else
     export OPENAI_BASE_URL="https://beta-api.paywithlocus.com/api/wrapped/openai"
     export OPENCLAW_MODEL="${OPENCLAW_MODEL:-openai/gpt-4o-mini}"
   else
-    echo "[init] ERROR: No inference provider available"
+    echo "[init] WARNING: No inference provider available"
     echo "[init] Set VENICE_API_KEY or LOCUS_API_KEY in .env"
-    exit 1
+    echo "[init] Agent will boot but cannot process requests until a provider is configured"
   fi
 fi
 
