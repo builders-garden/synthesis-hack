@@ -54,6 +54,12 @@ export async function POST(req: NextRequest) {
       DAILY_LIMIT: body.dailyLimit || "10",
     };
 
+    // Locus: pass through from server env if available (agent self-registers if missing)
+    const locusApiKey = process.env.LOCUS_API_KEY;
+    if (locusApiKey) {
+      envVars.LOCUS_API_KEY = locusApiKey;
+    }
+
     // Telegram: use frontend values, fall back to server env vars, skip if neither
     const telegramToken = body.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN;
     const telegramUsers = body.telegramAllowedUsers || process.env.TELEGRAM_ALLOWED_USERS;
