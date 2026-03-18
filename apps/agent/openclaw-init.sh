@@ -41,10 +41,21 @@ if [ -z "$LOCUS_API_KEY" ]; then
     REG_RESPONSE=""
     BACKOFF=5
     for attempt in $(seq 1 5); do
-      REG_RESPONSE="$(curl -sf -X POST https://beta-api.paywithlocus.com/api/register \
+      HTTP_CODE=""
+      REG_RESPONSE="$(curl -s -w "\n%{http_code}" -X POST https://beta-api.paywithlocus.com/api/register \
         -H "Content-Type: application/json" \
-        -d "{\"name\": \"$AGENT_NAME\"}" 2>&1)" && break
-      echo "[init] Registration attempt $attempt/5 failed — retrying in ${BACKOFF}s..."
+        -d "{\"name\": \"$AGENT_NAME\"}" 2>&1)"
+      HTTP_CODE="$(echo "$REG_RESPONSE" | tail -1)"
+      REG_RESPONSE="$(echo "$REG_RESPONSE" | sed '$d')"
+
+      if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
+        echo "[init] Locus responded with HTTP $HTTP_CODE"
+        break
+      fi
+
+      echo "[init] Registration attempt $attempt/5 failed (HTTP $HTTP_CODE)"
+      echo "[init] Response body: $REG_RESPONSE"
+      echo "[init] Retrying in ${BACKOFF}s..."
       sleep "$BACKOFF"
       BACKOFF=$((BACKOFF * 2))
       REG_RESPONSE=""
