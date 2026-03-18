@@ -5,4 +5,5 @@ dist
 .env.local
 .turbo
 .claude/
+!.claude/settings.json
 .agents/
