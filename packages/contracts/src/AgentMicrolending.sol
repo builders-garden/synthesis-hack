@@ -166,9 +166,6 @@ contract AgentMicrolending {
         emit LoanFunded(loanId, msg.sender);
     }
 
-    // ──────────────────────────────────────────────
-    //  Borrower repayment
-
     /// @notice Mark a funded loan as defaulted after the repayment deadline has passed.
     ///         Since loans are non-collateralized, this only updates the status (reputation signal).
     /// @param loanId The loan to mark as defaulted.
@@ -183,6 +180,8 @@ contract AgentMicrolending {
         emit LoanDefaulted(loanId);
     }
 
+    // ──────────────────────────────────────────────
+    //  Borrower repayment
     // ──────────────────────────────────────────────
 
     /// @notice Repay a funded loan. Borrower sends `repayAmount` to the lender.
