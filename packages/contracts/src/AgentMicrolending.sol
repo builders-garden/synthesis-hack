@@ -216,4 +216,75 @@ contract AgentMicrolending {
     function getLenderLoans(address lender) external view returns (uint256[] memory) {
         return _lenderLoans[lender];
     }
+
+    /// @notice Get paginated list of open loan requests.
+    /// @param offset Start index (skips non-open loans, counts only open ones).
+    /// @param limit  Max number of open loans to return.
+    function getOpenLoans(uint256 offset, uint256 limit) external view returns (LoanRequest[] memory) {
+        uint256 total = loans.length;
+        uint256 openCount = 0;
+        for (uint256 i = 0; i < total; i++) {
+            if (loans[i].status == LoanStatus.Open) openCount++;
+        }
+
+        if (offset >= openCount) return new LoanRequest[](0);
+        uint256 resultLen = limit;
+        if (offset + limit > openCount) resultLen = openCount - offset;
+
+        LoanRequest[] memory result = new LoanRequest[](resultLen);
+        uint256 found = 0;
+        uint256 added = 0;
+        for (uint256 i = 0; i < total && added < resultLen; i++) {
+            if (loans[i].status == LoanStatus.Open) {
+                if (found >= offset) {
+                    result[added] = loans[i];
+                    added++;
+                }
+                found++;
+            }
+        }
+        return result;
+    }
+
+    /// @notice Get all open loan requests for a specific borrower.
+    function getBorrowerOpenLoans(address borrower) external view returns (LoanRequest[] memory) {
+        uint256[] storage ids = _borrowerLoans[borrower];
+        uint256 len = ids.length;
+
+        uint256 openCount = 0;
+        for (uint256 i = 0; i < len; i++) {
+            if (loans[ids[i]].status == LoanStatus.Open) openCount++;
+        }
+
+        LoanRequest[] memory result = new LoanRequest[](openCount);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < len; i++) {
+            if (loans[ids[i]].status == LoanStatus.Open) {
+                result[idx] = loans[ids[i]];
+                idx++;
+            }
+        }
+        return result;
+    }
+
+    /// @notice Get loan IDs where the lender has an active (funded, not repaid/defaulted) loan.
+    function getLenderActiveLoanIds(address lender) external view returns (uint256[] memory) {
+        uint256[] storage ids = _lenderLoans[lender];
+        uint256 len = ids.length;
+
+        uint256 activeCount = 0;
+        for (uint256 i = 0; i < len; i++) {
+            if (loans[ids[i]].status == LoanStatus.Funded) activeCount++;
+        }
+
+        uint256[] memory result = new uint256[](activeCount);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < len; i++) {
+            if (loans[ids[i]].status == LoanStatus.Funded) {
+                result[idx] = ids[i];
+                idx++;
+            }
+        }
+        return result;
+    }
 }

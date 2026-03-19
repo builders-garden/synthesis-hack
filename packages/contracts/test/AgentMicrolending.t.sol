@@ -312,4 +312,85 @@ contract AgentMicrolendingTest is Test {
         AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
         assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Defaulted));
     }
+
+    // ════════════════════════════════════════════
+    //  Advanced view functions
+    // ════════════════════════════════════════════
+
+    function test_getOpenLoans() public {
+        // Create 3 loans, fund one
+        vm.startPrank(borrower);
+        lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, address(0));
+        lending.createLoanRequest(2 ether, 2.2 ether, block.timestamp + 30 days, address(0));
+        lending.createLoanRequest(3 ether, 3.3 ether, block.timestamp + 30 days, address(0));
+        vm.stopPrank();
+
+        // Fund loan 1
+        vm.prank(lender);
+        lending.fundLoan{value: 2 ether}(1);
+
+        AgentMicrolending.LoanRequest[] memory openLoans = lending.getOpenLoans(0, 10);
+        assertEq(openLoans.length, 2);
+        assertEq(openLoans[0].id, 0);
+        assertEq(openLoans[1].id, 2);
+    }
+
+    function test_getOpenLoansPagination() public {
+        // Create 5 open loans
+        vm.startPrank(borrower);
+        for (uint256 i = 0; i < 5; i++) {
+            lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, address(0));
+        }
+        vm.stopPrank();
+
+        AgentMicrolending.LoanRequest[] memory page1 = lending.getOpenLoans(0, 2);
+        assertEq(page1.length, 2);
+        assertEq(page1[0].id, 0);
+        assertEq(page1[1].id, 1);
+
+        AgentMicrolending.LoanRequest[] memory page2 = lending.getOpenLoans(2, 2);
+        assertEq(page2.length, 2);
+        assertEq(page2[0].id, 2);
+        assertEq(page2[1].id, 3);
+    }
+
+    function test_getBorrowerOpenLoans() public {
+        vm.startPrank(borrower);
+        lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, address(0));
+        lending.createLoanRequest(2 ether, 2.2 ether, block.timestamp + 30 days, address(0));
+        vm.stopPrank();
+
+        // Fund one
+        vm.prank(lender);
+        lending.fundLoan{value: 1 ether}(0);
+
+        AgentMicrolending.LoanRequest[] memory openLoans = lending.getBorrowerOpenLoans(borrower);
+        assertEq(openLoans.length, 1);
+        assertEq(openLoans[0].id, 1);
+    }
+
+    function test_getLenderActiveLoanIds() public {
+        // Create and fund two loans
+        vm.prank(borrower);
+        lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, address(0));
+        vm.prank(borrower);
+        lending.createLoanRequest(2 ether, 2.2 ether, block.timestamp + 30 days, address(0));
+
+        vm.prank(lender);
+        lending.fundLoan{value: 1 ether}(0);
+        vm.prank(lender);
+        lending.fundLoan{value: 2 ether}(1);
+
+        // Repay one
+        vm.prank(borrower);
+        lending.repayLoan{value: 1.1 ether}(0);
+
+        uint256[] memory activeIds = lending.getLenderActiveLoanIds(lender);
+        assertEq(activeIds.length, 1);
+        assertEq(activeIds[0], 1);
+    }
+
+    function test_totalLoansEmpty() public view {
+        assertEq(lending.totalLoans(), 0);
+    }
 }
