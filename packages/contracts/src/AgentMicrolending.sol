@@ -6,22 +6,27 @@ pragma solidity ^0.8.24;
 ///         Agents are simply EVM addresses. All data is stored on-chain and
 ///         queryable via view functions — no indexer or database required.
 contract AgentMicrolending {
-
     // ──────────────────────────────────────────────
     //  Types
     // ──────────────────────────────────────────────
 
-    enum LoanStatus { Open, Funded, Repaid, Defaulted, Cancelled }
+    enum LoanStatus {
+        Open,
+        Funded,
+        Repaid,
+        Defaulted,
+        Cancelled
+    }
 
     struct LoanRequest {
         uint256 id;
         address borrower;
-        address lender;        // requested lender (address(0) = open to anyone)
-        address actualLender;  // who actually funded the loan
-        uint256 amount;        // loan amount in native token (wei)
-        uint256 repayAmount;   // principal + interest borrower must repay
-        uint256 deadline;      // unix timestamp — must repay by this time
-        uint256 fundedAt;      // timestamp when funded (0 if not funded)
+        address lender; // requested lender (address(0) = open to anyone)
+        address actualLender; // who actually funded the loan
+        uint256 amount; // loan amount in native token (wei)
+        uint256 repayAmount; // principal + interest borrower must repay
+        uint256 deadline; // unix timestamp — must repay by this time
+        uint256 fundedAt; // timestamp when funded (0 if not funded)
         LoanStatus status;
     }
 
@@ -41,7 +46,14 @@ contract AgentMicrolending {
     //  Events
     // ──────────────────────────────────────────────
 
-    event LoanRequested(uint256 indexed loanId, address indexed borrower, address lender, uint256 amount, uint256 repayAmount, uint256 deadline);
+    event LoanRequested(
+        uint256 indexed loanId,
+        address indexed borrower,
+        address lender,
+        uint256 amount,
+        uint256 repayAmount,
+        uint256 deadline
+    );
     event LoanFunded(uint256 indexed loanId, address indexed lender);
     event LoanRepaid(uint256 indexed loanId);
     event LoanDefaulted(uint256 indexed loanId);
@@ -85,36 +97,34 @@ contract AgentMicrolending {
     /// @param deadline    Unix timestamp by which the loan must be repaid.
     /// @param lender      Specific lender address, or address(0) for open request.
     /// @return loanId     The ID of the created loan request.
-    function createLoanRequest(
-        uint256 amount,
-        uint256 repayAmount,
-        uint256 deadline,
-        address lender
-    ) external returns (uint256 loanId) {
+    function createLoanRequest(uint256 amount, uint256 repayAmount, uint256 deadline, address lender)
+        external
+        returns (uint256 loanId)
+    {
         if (amount == 0) revert ZeroAmount();
         if (repayAmount < amount) revert RepayTooLow();
         if (deadline <= block.timestamp) revert DeadlineInPast();
 
         loanId = loans.length;
 
-        loans.push(LoanRequest({
-            id: loanId,
-            borrower: msg.sender,
-            lender: lender,
-            actualLender: address(0),
-            amount: amount,
-            repayAmount: repayAmount,
-            deadline: deadline,
-            fundedAt: 0,
-            status: LoanStatus.Open
-        }));
+        loans.push(
+            LoanRequest({
+                id: loanId,
+                borrower: msg.sender,
+                lender: lender,
+                actualLender: address(0),
+                amount: amount,
+                repayAmount: repayAmount,
+                deadline: deadline,
+                fundedAt: 0,
+                status: LoanStatus.Open
+            })
+        );
 
         _borrowerLoans[msg.sender].push(loanId);
 
         emit LoanRequested(loanId, msg.sender, lender, amount, repayAmount, deadline);
     }
-
-
 
     /// @notice Cancel an open (unfunded) loan request.
     /// @param loanId The loan to cancel.
@@ -150,7 +160,7 @@ contract AgentMicrolending {
         _lenderLoans[msg.sender].push(loanId);
 
         // Transfer funds to borrower
-        (bool success, ) = loan.borrower.call{value: msg.value}("");
+        (bool success,) = loan.borrower.call{value: msg.value}("");
         if (!success) revert TransferFailed();
 
         emit LoanFunded(loanId, msg.sender);
@@ -188,7 +198,7 @@ contract AgentMicrolending {
         loan.status = LoanStatus.Repaid;
 
         // Send repayment to lender
-        (bool success, ) = loan.actualLender.call{value: msg.value}("");
+        (bool success,) = loan.actualLender.call{value: msg.value}("");
         if (!success) revert TransferFailed();
 
         emit LoanRepaid(loanId);
