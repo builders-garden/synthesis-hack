@@ -393,4 +393,93 @@ contract AgentMicrolendingTest is Test {
     function test_totalLoansEmpty() public view {
         assertEq(lending.totalLoans(), 0);
     }
+
+    // ════════════════════════════════════════════
+    //  Integration — full lifecycle
+    // ════════════════════════════════════════════
+
+    function test_fullLoanLifecycle() public {
+        // 1. Borrower creates loan request
+        uint256 deadline = block.timestamp + 30 days;
+        vm.prank(borrower);
+        uint256 loanId = lending.createLoanRequest(5 ether, 5.5 ether, deadline, lender);
+
+        // 2. Verify open state
+        AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
+        assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Open));
+
+        // 3. Lender funds it
+        uint256 borrowerBal = borrower.balance;
+        vm.prank(lender);
+        lending.fundLoan{value: 5 ether}(loanId);
+        assertEq(borrower.balance, borrowerBal + 5 ether);
+
+        // 4. Borrower repays within deadline
+        uint256 lenderBal = lender.balance;
+        vm.prank(borrower);
+        lending.repayLoan{value: 5.5 ether}(loanId);
+        assertEq(lender.balance, lenderBal + 5.5 ether);
+
+        // 5. Loan is repaid
+        loan = lending.getLoan(loanId);
+        assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Repaid));
+    }
+
+    function test_defaultLifecycle() public {
+        // 1. Borrower creates loan, lender funds
+        uint256 loanId = _createAndFundLoan();
+
+        // 2. Deadline passes without repayment
+        vm.warp(block.timestamp + 31 days);
+
+        // 3. Anyone marks as defaulted
+        vm.prank(stranger);
+        lending.claimDefaulted(loanId);
+
+        // 4. Verify defaulted
+        AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
+        assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Defaulted));
+    }
+
+    function test_multiAgentScenario() public {
+        address agent1 = makeAddr("agent1");
+        address agent2 = makeAddr("agent2");
+        address agent3 = makeAddr("agent3");
+        vm.deal(agent1, 100 ether);
+        vm.deal(agent2, 100 ether);
+        vm.deal(agent3, 100 ether);
+
+        // Agent1 requests loan from agent2
+        vm.prank(agent1);
+        uint256 loan1 = lending.createLoanRequest(1 ether, 1.05 ether, block.timestamp + 7 days, agent2);
+
+        // Agent1 also requests open loan
+        vm.prank(agent1);
+        uint256 loan2 = lending.createLoanRequest(2 ether, 2.1 ether, block.timestamp + 14 days, address(0));
+
+        // Agent2 funds first loan
+        vm.prank(agent2);
+        lending.fundLoan{value: 1 ether}(loan1);
+
+        // Agent3 funds open loan
+        vm.prank(agent3);
+        lending.fundLoan{value: 2 ether}(loan2);
+
+        // Agent1 repays both
+        vm.prank(agent1);
+        lending.repayLoan{value: 1.05 ether}(loan1);
+
+        vm.prank(agent1);
+        lending.repayLoan{value: 2.1 ether}(loan2);
+
+        // Verify all repaid
+        assertEq(uint8(lending.getLoan(loan1).status), uint8(AgentMicrolending.LoanStatus.Repaid));
+        assertEq(uint8(lending.getLoan(loan2).status), uint8(AgentMicrolending.LoanStatus.Repaid));
+
+        // Verify lookup correctness
+        assertEq(lending.getBorrowerLoans(agent1).length, 2);
+        assertEq(lending.getLenderLoans(agent2).length, 1);
+        assertEq(lending.getLenderLoans(agent3).length, 1);
+    }
+
 }
