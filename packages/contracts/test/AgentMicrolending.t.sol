@@ -92,4 +92,91 @@ contract AgentMicrolendingTest is Test {
         assertEq(ids[0], 0);
         assertEq(ids[1], 1);
     }
+
+    // ════════════════════════════════════════════
+    //  Fund loan
+    // ════════════════════════════════════════════
+
+    function _createDefaultLoan() internal returns (uint256) {
+        vm.prank(borrower);
+        return lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, lender);
+    }
+
+    function _createOpenLoan() internal returns (uint256) {
+        vm.prank(borrower);
+        return lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, address(0));
+    }
+
+    function test_fundLoan() public {
+        uint256 loanId = _createDefaultLoan();
+        uint256 borrowerBal = borrower.balance;
+
+        vm.prank(lender);
+        lending.fundLoan{value: 1 ether}(loanId);
+
+        AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
+        assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Funded));
+        assertEq(loan.actualLender, lender);
+        assertTrue(loan.fundedAt > 0);
+        assertEq(borrower.balance, borrowerBal + 1 ether);
+    }
+
+    function test_fundOpenLoan() public {
+        uint256 loanId = _createOpenLoan();
+
+        vm.prank(stranger);
+        lending.fundLoan{value: 1 ether}(loanId);
+
+        AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
+        assertEq(loan.actualLender, stranger);
+        assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Funded));
+    }
+
+    function test_fundLoanWrongLenderReverts() public {
+        uint256 loanId = _createDefaultLoan();
+
+        vm.prank(stranger);
+        vm.expectRevert(AgentMicrolending.NotAuthorizedLender.selector);
+        lending.fundLoan{value: 1 ether}(loanId);
+    }
+
+    function test_fundLoanWrongAmountReverts() public {
+        uint256 loanId = _createDefaultLoan();
+
+        vm.prank(lender);
+        vm.expectRevert(AgentMicrolending.IncorrectAmount.selector);
+        lending.fundLoan{value: 0.5 ether}(loanId);
+    }
+
+    function test_fundLoanNotOpenReverts() public {
+        uint256 loanId = _createDefaultLoan();
+
+        vm.prank(lender);
+        lending.fundLoan{value: 1 ether}(loanId);
+
+        vm.prank(lender);
+        vm.expectRevert(AgentMicrolending.LoanNotOpen.selector);
+        lending.fundLoan{value: 1 ether}(loanId);
+    }
+
+    function test_fundLoanTracksLenderLoans() public {
+        uint256 loanId = _createDefaultLoan();
+
+        vm.prank(lender);
+        lending.fundLoan{value: 1 ether}(loanId);
+
+        uint256[] memory ids = lending.getLenderLoans(lender);
+        assertEq(ids.length, 1);
+        assertEq(ids[0], loanId);
+    }
+
+    function test_fundLoanAfterDeadlineReverts() public {
+        uint256 loanId = _createDefaultLoan();
+
+        vm.warp(block.timestamp + 31 days);
+
+        vm.prank(lender);
+        vm.expectRevert(AgentMicrolending.DeadlineReached.selector);
+        lending.fundLoan{value: 1 ether}(loanId);
+    }
 }

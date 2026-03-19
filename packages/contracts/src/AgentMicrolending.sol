@@ -114,6 +114,33 @@ contract AgentMicrolending {
         emit LoanRequested(loanId, msg.sender, lender, amount, repayAmount, deadline);
     }
 
+
+    // ──────────────────────────────────────────────
+    //  Lender actions
+    // ──────────────────────────────────────────────
+
+    /// @notice Fund an open loan request. Sends `amount` native token to the borrower.
+    /// @param loanId The loan to fund.
+    function fundLoan(uint256 loanId) external payable nonReentrant {
+        LoanRequest storage loan = loans[loanId];
+
+        if (loan.status != LoanStatus.Open) revert LoanNotOpen();
+        if (block.timestamp >= loan.deadline) revert DeadlineReached();
+        if (loan.lender != address(0) && msg.sender != loan.lender) revert NotAuthorizedLender();
+        if (msg.value != loan.amount) revert IncorrectAmount();
+
+        loan.status = LoanStatus.Funded;
+        loan.actualLender = msg.sender;
+        loan.fundedAt = block.timestamp;
+
+        _lenderLoans[msg.sender].push(loanId);
+
+        // Transfer funds to borrower
+        (bool success, ) = loan.borrower.call{value: msg.value}("");
+        if (!success) revert TransferFailed();
+
+        emit LoanFunded(loanId, msg.sender);
+    }
     // ──────────────────────────────────────────────
     //  View functions
     // ──────────────────────────────────────────────
