@@ -1,8 +1,14 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, RoundedBox, Html, OrbitControls } from "@react-three/drei";
+import {
+  Float,
+  RoundedBox,
+  Html,
+  OrbitControls,
+  ContactShadows,
+} from "@react-three/drei";
 import * as THREE from "three";
 
 /* ── Palette ── */
@@ -12,12 +18,14 @@ const BEIGE_SHADOW = "#c4bdb4";
 const INK = "#1a1a1a";
 const SCREEN_BG = "#2a2a2a";
 const GOLD = "#c9a96e";
+const GREEN_LED = "#4ade80";
 
 /* ── CRT Screen content ── */
 function ScreenContent() {
   return (
     <Html
       transform
+      occlude="blending"
       distanceFactor={1.5}
       position={[0, 0.35, 0.88]}
       style={{
@@ -123,6 +131,27 @@ function ScreenContent() {
           </div>
         </div>
       </div>
+      {/* Scanlines overlay */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "repeating-linear-gradient(0deg, rgba(0,0,0,0.06) 0px, rgba(0,0,0,0.06) 1px, transparent 1px, transparent 3px)",
+          pointerEvents: "none",
+          borderRadius: "4px",
+        }}
+      />
+      {/* CRT vignette */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: "4px",
+          boxShadow: "inset 0 0 30px rgba(0,0,0,0.35)",
+          pointerEvents: "none",
+        }}
+      />
       <style>{`@keyframes blink { 50% { opacity: 0; } }`}</style>
     </Html>
   );
@@ -183,6 +212,54 @@ function BackPanel() {
   );
 }
 
+/* ── Mouse ── */
+function Mouse() {
+  const cablePoints = useMemo(() => {
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= 20; i++) {
+      const t = i / 20;
+      pts.push(
+        new THREE.Vector3(
+          1.5 + t * 0.3 + Math.sin(t * Math.PI) * 0.15,
+          -1.48,
+          1.6 - t * 1.0
+        )
+      );
+    }
+    return new THREE.CatmullRomCurve3(pts);
+  }, []);
+
+  return (
+    <group>
+      {/* Mouse body */}
+      <group position={[1.6, -1.44, 1.6]}>
+        <RoundedBox args={[0.28, 0.1, 0.4]} radius={0.045} smoothness={4}>
+          <meshStandardMaterial color={BEIGE_LIGHT} metalness={0.08} roughness={0.6} />
+        </RoundedBox>
+        {/* Mouse button */}
+        <RoundedBox
+          args={[0.24, 0.02, 0.18]}
+          radius={0.02}
+          smoothness={4}
+          position={[0, 0.055, -0.05]}
+        >
+          <meshStandardMaterial color={BEIGE_DARK} metalness={0.06} roughness={0.65} />
+        </RoundedBox>
+        {/* Button divider line */}
+        <mesh position={[0, 0.065, -0.05]}>
+          <boxGeometry args={[0.24, 0.004, 0.003]} />
+          <meshStandardMaterial color={BEIGE_SHADOW} metalness={0.1} roughness={0.6} />
+        </mesh>
+      </group>
+      {/* Cable */}
+      <mesh>
+        <tubeGeometry args={[cablePoints, 20, 0.012, 6, false]} />
+        <meshStandardMaterial color={BEIGE_SHADOW} metalness={0.05} roughness={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
 /* ── The retro Macintosh ── */
 function RetroComputer() {
   const groupRef = useRef<THREE.Group>(null!);
@@ -207,35 +284,98 @@ function RetroComputer() {
 
         {/* ── CRT screen ── */}
         <RoundedBox args={[1.65, 1.3, 0.05]} radius={0.13} smoothness={4} position={[0, 0.35, 0.83]}>
-          <meshStandardMaterial color={SCREEN_BG} metalness={0.3} roughness={0.4} />
+          <meshStandardMaterial
+            color={SCREEN_BG}
+            metalness={0.3}
+            roughness={0.4}
+            emissive="#1a2a1a"
+            emissiveIntensity={0.3}
+          />
         </RoundedBox>
+
+        {/* ── CRT screen glow ── */}
+        <pointLight
+          position={[0, 0.35, 1.2]}
+          color="#a0c8a0"
+          intensity={0.12}
+          distance={1.5}
+        />
 
         {/* ── Screen content ── */}
         <ScreenContent />
 
-        {/* ── Floppy slot ── */}
-        <mesh position={[0, -0.55, 0.82]}>
-          <boxGeometry args={[0.65, 0.05, 0.01]} />
-          <meshStandardMaterial color="#3a3a3a" metalness={0.4} roughness={0.5} />
-        </mesh>
+        {/* ── Floppy slot — with depth ── */}
+        <group position={[0, -0.55, 0.8]}>
+          {/* Outer slot frame */}
+          <mesh position={[0, 0, 0.025]}>
+            <boxGeometry args={[0.7, 0.07, 0.01]} />
+            <meshStandardMaterial color={BEIGE_SHADOW} metalness={0.1} roughness={0.6} />
+          </mesh>
+          {/* Inner dark slot */}
+          <mesh position={[0, 0, 0.02]}>
+            <boxGeometry args={[0.6, 0.035, 0.01]} />
+            <meshStandardMaterial color="#2a2a2a" metalness={0.4} roughness={0.5} />
+          </mesh>
+        </group>
 
-        {/* ── Logo grid ── */}
-        <group position={[0.72, -1.0, 0.82]}>
-          {Array.from({ length: 9 }, (_, i) => (
-            <mesh key={i} position={[(i % 3) * 0.07, -Math.floor(i / 3) * 0.07, 0]}>
-              <boxGeometry args={[0.045, 0.045, 0.015]} />
-              <meshStandardMaterial color={INK} metalness={0.3} roughness={0.5} />
-            </mesh>
-          ))}
+        {/* ── Speaker grille (perforated rows) ── */}
+        <group position={[0.65, -0.95, 0.82]}>
+          {Array.from({ length: 5 }, (_, row) =>
+            Array.from({ length: 4 }, (_, col) => (
+              <mesh
+                key={`sp-${row}-${col}`}
+                position={[col * 0.06, -row * 0.06, 0]}
+                rotation={[Math.PI / 2, 0, 0]}
+              >
+                <cylinderGeometry args={[0.018, 0.018, 0.015, 8]} />
+                <meshStandardMaterial color={BEIGE_SHADOW} metalness={0.1} roughness={0.7} />
+              </mesh>
+            ))
+          )}
+        </group>
+
+        {/* ── Power LED ── */}
+        <group position={[-0.85, -0.55, 0.82]}>
+          <mesh>
+            <cylinderGeometry args={[0.025, 0.025, 0.012, 12]} />
+            <meshStandardMaterial
+              color={GREEN_LED}
+              emissive={GREEN_LED}
+              emissiveIntensity={1.5}
+              metalness={0.3}
+              roughness={0.3}
+            />
+          </mesh>
+          {/* LED glow halo */}
+          <pointLight
+            position={[0, 0, 0.05]}
+            color={GREEN_LED}
+            intensity={0.15}
+            distance={0.5}
+          />
+        </group>
+
+        {/* ── Brightness knob ── */}
+        <group position={[-0.85, -0.85, 0.82]}>
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.04, 0.04, 0.03, 16]} />
+            <meshStandardMaterial color={BEIGE_SHADOW} metalness={0.15} roughness={0.5} />
+          </mesh>
+          {/* Knob indicator notch */}
+          <mesh position={[0, 0.02, 0.016]}>
+            <boxGeometry args={[0.008, 0.025, 0.005]} />
+            <meshStandardMaterial color={INK} metalness={0.2} roughness={0.5} />
+          </mesh>
         </group>
 
         {/* ── "YIELD AGENT" badge ── */}
-        <group position={[-0.65, -0.85, 0.82]}>
+        <group position={[-0.45, -1.05, 0.82]}>
           <RoundedBox args={[0.48, 0.2, 0.02]} radius={0.03} smoothness={4}>
             <meshStandardMaterial color="#8B2020" metalness={0.15} roughness={0.7} />
           </RoundedBox>
           <Html
             transform
+            occlude="blending"
             distanceFactor={1.5}
             position={[0, 0, 0.015]}
             style={{
@@ -255,15 +395,38 @@ function RetroComputer() {
         </group>
 
         {/* ── Handle on top ── */}
-        <RoundedBox args={[0.6, 0.08, 0.4]} radius={0.035} smoothness={4} position={[0, 1.34, -0.1]}>
-          <meshStandardMaterial color={BEIGE_DARK} metalness={0.1} roughness={0.6} />
-        </RoundedBox>
+        <group position={[0, 1.34, -0.1]}>
+          <RoundedBox args={[0.6, 0.08, 0.4]} radius={0.035} smoothness={4}>
+            <meshStandardMaterial color={BEIGE_DARK} metalness={0.1} roughness={0.6} />
+          </RoundedBox>
+          {/* Handle shadow groove */}
+          <mesh position={[0, -0.045, 0.15]}>
+            <boxGeometry args={[0.45, 0.015, 0.08]} />
+            <meshStandardMaterial color={BEIGE_SHADOW} metalness={0.05} roughness={0.7} />
+          </mesh>
+        </group>
+
+        {/* ── Rubber feet ── */}
+        {[
+          [-0.85, -1.32, 0.6],
+          [0.85, -1.32, 0.6],
+          [-0.85, -1.32, -0.6],
+          [0.85, -1.32, -0.6],
+        ].map((pos, i) => (
+          <mesh key={`foot-${i}`} position={pos as [number, number, number]}>
+            <cylinderGeometry args={[0.06, 0.07, 0.04, 12]} />
+            <meshStandardMaterial color="#3a3a3a" metalness={0.1} roughness={0.9} />
+          </mesh>
+        ))}
 
         {/* ── Back panel ── */}
         <BackPanel />
 
         {/* ── Keyboard ── */}
         <Keyboard />
+
+        {/* ── Mouse ── */}
+        <Mouse />
       </group>
     </Float>
   );
@@ -284,6 +447,15 @@ export function HeroScene() {
         <pointLight position={[0, 2, 3]} intensity={0.3} color={GOLD} />
 
         <RetroComputer />
+
+        <ContactShadows
+          position={[0, -1.2, 0]}
+          opacity={0.35}
+          scale={6}
+          blur={2.5}
+          far={3}
+          color="#8a7e72"
+        />
 
         <OrbitControls
           enableZoom={false}
