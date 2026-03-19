@@ -20,6 +20,15 @@ const SCREEN_BG = "#2a2a2a";
 const GOLD = "#c9a96e";
 const GREEN_LED = "#4ade80";
 
+/* ── Rainbow colors (classic Apple stripe order) ── */
+const RAINBOW = ["#61BB46", "#FDB827", "#F5821F", "#E03A3E", "#963D97", "#009DDC"];
+
+/* ── Fun keycap accent colors ── */
+const KEY_COLORS = [
+  "#e06060", "#e8a040", "#e8d44d", "#5cbf5c", "#50a0d8", "#9070c0",
+  "#e87090", "#40bfbf", BEIGE_DARK,
+];
+
 /* ── CRT Screen content ── */
 function ScreenContent() {
   return (
@@ -31,7 +40,7 @@ function ScreenContent() {
       style={{
         width: "280px",
         height: "210px",
-        background: "#1e1e1e",
+        background: "#1a1a2e",
         borderRadius: "4px",
         overflow: "hidden",
         fontFamily: "'Geist Mono', 'Monaco', monospace",
@@ -42,19 +51,25 @@ function ScreenContent() {
       }}
     >
       <div style={{ padding: "10px 12px", height: "100%" }}>
+        {/* Title bar */}
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: "8px",
-            opacity: 0.5,
+            opacity: 0.6,
             fontSize: "10px",
             letterSpacing: "0.05em",
           }}
         >
-          <span>YieldOS 1.0</span>
-          <span style={{ fontFamily: "monospace" }}>■ ■ ■</span>
+          <span>ClawOS 1.0</span>
+          {/* Colorful window dots */}
+          <span style={{ display: "flex", gap: "4px" }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#e03a3e", display: "inline-block" }} />
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#fdb827", display: "inline-block" }} />
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#61bb46", display: "inline-block" }} />
+          </span>
         </div>
         <div style={{ display: "flex", gap: "12px", height: "calc(100% - 28px)" }}>
           <div
@@ -67,10 +82,10 @@ function ScreenContent() {
             }}
           >
             {[
-              { icon: "◆", label: "System", color: "#6b9bd2" },
-              { icon: "◆", label: "Wallet", color: "#c9a96e" },
-              { icon: "◆", label: "Staking", color: "#7aba7a" },
-              { icon: "◆", label: "Agent", color: "#e0ddd6" },
+              { icon: "◆", label: "Identity", color: "#50a0d8" },
+              { icon: "◆", label: "Wallet", color: "#e8d44d" },
+              { icon: "◆", label: "Lending", color: "#61bb46" },
+              { icon: "◆", label: "Agent", color: "#e87090" },
               { icon: "◆", label: "Logs", color: "#9c958e" },
             ].map((item) => (
               <div key={item.label} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
@@ -106,22 +121,22 @@ function ScreenContent() {
               <span>[x]</span>
             </div>
             <div style={{ opacity: 0.85 }}>
-              <span style={{ color: "#6b9bd2" }}>{">"}</span> Identity verified via Self
+              <span style={{ color: "#50a0d8" }}>{">"}</span> Identity verified via Self
               <br />
-              <span style={{ color: "#7aba7a" }}>{">"}</span> Deposited 100 USDC to pool
+              <span style={{ color: "#61bb46" }}>{">"}</span> Deposited 100 USDC to pool
               <br />
-              <span style={{ color: "#c9a96e" }}>{">"}</span> Loan disbursed: 50 USDC
+              <span style={{ color: "#e8d44d" }}>{">"}</span> Loan disbursed: 50 USDC
               <br />
-              <span style={{ color: "#e0ddd6" }}>{">"}</span> Repayment received.
+              <span style={{ color: "#e87090" }}>{">"}</span> Repayment received.
               <br />
-              <span style={{ color: "#9c958e" }}>{">"}</span> Reputation +10.
+              <span style={{ color: "#9070c0" }}>{">"}</span> Reputation +10.
               <br />
               <span
                 style={{
                   display: "inline-block",
                   width: "6px",
                   height: "11px",
-                  background: "#c9a96e",
+                  background: "#61bb46",
                   animation: "blink 1s step-end infinite",
                   verticalAlign: "text-bottom",
                   marginLeft: "2px",
@@ -157,13 +172,19 @@ function ScreenContent() {
   );
 }
 
-/* ── Keyboard ── */
+/* ── Keyboard with colorful keys ── */
 function Keyboard() {
   const rows = [13, 12, 12, 10];
   const keyW = 0.13;
   const keyGap = 0.018;
   const keyH = 0.035;
   const keyD = 0.11;
+
+  /* Deterministic "random" color per key */
+  const keyColor = (row: number, col: number) => {
+    const idx = (row * 7 + col * 3) % KEY_COLORS.length;
+    return KEY_COLORS[idx];
+  };
 
   return (
     <group position={[0, -1.48, 1.2]} rotation={[-0.08, 0, 0]}>
@@ -182,7 +203,11 @@ function Keyboard() {
             smoothness={2}
             position={[startX + colIdx * (keyW + keyGap), 0.035, z]}
           >
-            <meshStandardMaterial color={BEIGE_DARK} metalness={0.05} roughness={0.7} />
+            <meshStandardMaterial
+              color={keyColor(rowIdx, colIdx)}
+              metalness={0.05}
+              roughness={0.6}
+            />
           </RoundedBox>
         ));
       })}
@@ -243,7 +268,7 @@ function Mouse() {
           smoothness={4}
           position={[0, 0.055, -0.05]}
         >
-          <meshStandardMaterial color={BEIGE_DARK} metalness={0.06} roughness={0.65} />
+          <meshStandardMaterial color="#50a0d8" metalness={0.1} roughness={0.5} />
         </RoundedBox>
         {/* Button divider line */}
         <mesh position={[0, 0.065, -0.05]}>
@@ -255,6 +280,46 @@ function Mouse() {
       <mesh>
         <tubeGeometry args={[cablePoints, 20, 0.012, 6, false]} />
         <meshStandardMaterial color={BEIGE_SHADOW} metalness={0.05} roughness={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
+/* ── Rainbow stripe (classic Apple logo style) ── */
+function RainbowStripe() {
+  const stripeH = 0.06;
+  const totalH = RAINBOW.length * stripeH;
+  const startY = totalH / 2 - stripeH / 2;
+
+  return (
+    <group position={[0.82, 0.35, 0.82]}>
+      {RAINBOW.map((color, i) => (
+        <mesh key={color} position={[0, startY - i * stripeH, 0]}>
+          <boxGeometry args={[0.06, stripeH - 0.005, 0.01]} />
+          <meshStandardMaterial color={color} metalness={0.1} roughness={0.5} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+/* ── Floppy disk sticking out ── */
+function FloppyDisk() {
+  return (
+    <group position={[0, -0.55, 0.88]} rotation={[0.03, 0, 0]}>
+      {/* Disk body */}
+      <RoundedBox args={[0.5, 0.04, 0.35]} radius={0.01} smoothness={2}>
+        <meshStandardMaterial color="#e8d44d" metalness={0.05} roughness={0.6} />
+      </RoundedBox>
+      {/* Metal slider */}
+      <mesh position={[0, 0.022, -0.06]}>
+        <boxGeometry args={[0.25, 0.005, 0.12]} />
+        <meshStandardMaterial color="#b0b0b0" metalness={0.5} roughness={0.3} />
+      </mesh>
+      {/* Label */}
+      <mesh position={[0, 0.022, 0.08]}>
+        <boxGeometry args={[0.35, 0.004, 0.12]} />
+        <meshStandardMaterial color="#fff" metalness={0.0} roughness={0.8} />
       </mesh>
     </group>
   );
@@ -288,35 +353,27 @@ function RetroComputer() {
             color={SCREEN_BG}
             metalness={0.3}
             roughness={0.4}
-            emissive="#1a2a1a"
-            emissiveIntensity={0.3}
+            emissive="#1a1a2e"
+            emissiveIntensity={0.4}
           />
         </RoundedBox>
 
         {/* ── CRT screen glow ── */}
         <pointLight
           position={[0, 0.35, 1.2]}
-          color="#a0c8a0"
-          intensity={0.12}
+          color="#8090d0"
+          intensity={0.15}
           distance={1.5}
         />
 
         {/* ── Screen content ── */}
         <ScreenContent />
 
-        {/* ── Floppy slot — with depth ── */}
-        <group position={[0, -0.55, 0.8]}>
-          {/* Outer slot frame */}
-          <mesh position={[0, 0, 0.025]}>
-            <boxGeometry args={[0.7, 0.07, 0.01]} />
-            <meshStandardMaterial color={BEIGE_SHADOW} metalness={0.1} roughness={0.6} />
-          </mesh>
-          {/* Inner dark slot */}
-          <mesh position={[0, 0, 0.02]}>
-            <boxGeometry args={[0.6, 0.035, 0.01]} />
-            <meshStandardMaterial color="#2a2a2a" metalness={0.4} roughness={0.5} />
-          </mesh>
-        </group>
+        {/* ── Rainbow stripe on front ── */}
+        <RainbowStripe />
+
+        {/* ── Floppy disk sticking out ── */}
+        <FloppyDisk />
 
         {/* ── Speaker grille (perforated rows) ── */}
         <group position={[0.65, -0.95, 0.82]}>
@@ -359,19 +416,19 @@ function RetroComputer() {
         <group position={[-0.85, -0.85, 0.82]}>
           <mesh rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.04, 0.04, 0.03, 16]} />
-            <meshStandardMaterial color={BEIGE_SHADOW} metalness={0.15} roughness={0.5} />
+            <meshStandardMaterial color="#e03a3e" metalness={0.15} roughness={0.5} />
           </mesh>
           {/* Knob indicator notch */}
           <mesh position={[0, 0.02, 0.016]}>
             <boxGeometry args={[0.008, 0.025, 0.005]} />
-            <meshStandardMaterial color={INK} metalness={0.2} roughness={0.5} />
+            <meshStandardMaterial color="#fff" metalness={0.2} roughness={0.5} />
           </mesh>
         </group>
 
-        {/* ── "YIELD AGENT" badge ── */}
+        {/* ── "OPENCLAW" badge ── */}
         <group position={[-0.45, -1.05, 0.82]}>
-          <RoundedBox args={[0.48, 0.2, 0.02]} radius={0.03} smoothness={4}>
-            <meshStandardMaterial color="#8B2020" metalness={0.15} roughness={0.7} />
+          <RoundedBox args={[0.52, 0.2, 0.02]} radius={0.03} smoothness={4}>
+            <meshStandardMaterial color="#963D97" metalness={0.15} roughness={0.6} />
           </RoundedBox>
           <Html
             transform
@@ -390,14 +447,14 @@ function RetroComputer() {
               pointerEvents: "none",
             }}
           >
-            YIELD AGENT
+            OPENCLAW
           </Html>
         </group>
 
         {/* ── Handle on top ── */}
         <group position={[0, 1.34, -0.1]}>
           <RoundedBox args={[0.6, 0.08, 0.4]} radius={0.035} smoothness={4}>
-            <meshStandardMaterial color={BEIGE_DARK} metalness={0.1} roughness={0.6} />
+            <meshStandardMaterial color="#e03a3e" metalness={0.1} roughness={0.5} />
           </RoundedBox>
           {/* Handle shadow groove */}
           <mesh position={[0, -0.045, 0.15]}>
@@ -406,16 +463,18 @@ function RetroComputer() {
           </mesh>
         </group>
 
-        {/* ── Rubber feet ── */}
-        {[
-          [-0.85, -1.32, 0.6],
-          [0.85, -1.32, 0.6],
-          [-0.85, -1.32, -0.6],
-          [0.85, -1.32, -0.6],
-        ].map((pos, i) => (
-          <mesh key={`foot-${i}`} position={pos as [number, number, number]}>
+        {/* ── Colorful rubber feet ── */}
+        {(
+          [
+            [-0.85, -1.32, 0.6, "#e03a3e"],
+            [0.85, -1.32, 0.6, "#61bb46"],
+            [-0.85, -1.32, -0.6, "#fdb827"],
+            [0.85, -1.32, -0.6, "#009ddc"],
+          ] as [number, number, number, string][]
+        ).map(([x, y, z, color], i) => (
+          <mesh key={`foot-${i}`} position={[x, y, z]}>
             <cylinderGeometry args={[0.06, 0.07, 0.04, 12]} />
-            <meshStandardMaterial color="#3a3a3a" metalness={0.1} roughness={0.9} />
+            <meshStandardMaterial color={color} metalness={0.1} roughness={0.7} />
           </mesh>
         ))}
 
@@ -435,9 +494,9 @@ function RetroComputer() {
 /* ── Main exported scene ── */
 export function HeroScene() {
   return (
-    <div className="h-[420px] w-[320px] md:h-[520px] md:w-[420px] lg:h-[580px] lg:w-[480px]">
+    <div className="h-[500px] w-[400px] md:h-[620px] md:w-[520px] lg:h-[700px] lg:w-[600px]">
       <Canvas
-        camera={{ position: [0, 0, 5.5], fov: 35 }}
+        camera={{ position: [0, 0, 6], fov: 35 }}
         gl={{ antialias: true, alpha: true }}
         style={{ background: "transparent" }}
       >
@@ -460,8 +519,10 @@ export function HeroScene() {
         <OrbitControls
           enableZoom={false}
           enablePan={false}
-          minPolarAngle={Math.PI / 4}
-          maxPolarAngle={Math.PI / 1.6}
+          minPolarAngle={Math.PI / 3}
+          maxPolarAngle={Math.PI / 1.8}
+          minAzimuthAngle={-Math.PI / 5}
+          maxAzimuthAngle={Math.PI / 5}
           dampingFactor={0.08}
           rotateSpeed={0.5}
         />
