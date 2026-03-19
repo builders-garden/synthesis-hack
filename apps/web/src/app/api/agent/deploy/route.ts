@@ -8,9 +8,6 @@ import {
 
 interface DeployRequest {
   agentName: string;
-  veniceModel: string;
-  spendingCap: string;
-  dailyLimit: string;
   telegramBotToken?: string;
   telegramAllowedUsers?: string;
 }
@@ -49,15 +46,17 @@ export async function POST(req: NextRequest) {
     const envVars: Record<string, string> = {
       AGENT_NAME: body.agentName,
       SETUP_PASSWORD: setupPassword,
-      VENICE_MODEL: body.veniceModel || "venice/llama-3.3-70b",
-      SPENDING_CAP: body.spendingCap || "5",
-      DAILY_LIMIT: body.dailyLimit || "10",
+      CELO_RPC_URL: process.env.CELO_RPC_URL || "https://forno.celo.org",
     };
 
-    // Locus: pass through from server env if available (agent self-registers if missing)
-    const locusApiKey = process.env.LOCUS_API_KEY;
-    if (locusApiKey) {
-      envVars.LOCUS_API_KEY = locusApiKey;
+    // Privy: pass through from server env for agent wallet creation
+    const privyAppId = process.env.PRIVY_APP_ID;
+    const privyAppSecret = process.env.PRIVY_APP_SECRET;
+    if (privyAppId) {
+      envVars.PRIVY_APP_ID = privyAppId;
+    }
+    if (privyAppSecret) {
+      envVars.PRIVY_APP_SECRET = privyAppSecret;
     }
 
     // Telegram: use frontend values, fall back to server env vars, skip if neither

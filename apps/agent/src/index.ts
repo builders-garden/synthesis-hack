@@ -14,8 +14,8 @@ interface AgentInstance {
   process: ChildProcess | null;
   config: Record<string, unknown>;
   status: "starting" | "running" | "stopped" | "error";
-  locusApiKey: string;
   walletAddress: string;
+  walletId: string;
   createdAt: string;
 }
 
@@ -56,16 +56,13 @@ app.get("/agents/:name", (req, res) => {
 app.post("/agents/deploy", async (req, res) => {
   const {
     agentName,
-    veniceModel,
-    locusApiKey,
-    ownerAddress,
-    ownerPrivateKey,
-    spendingCap,
-    dailyLimit,
+    privyAppId,
+    privyAppSecret,
+    celoRpcUrl,
   } = req.body;
 
-  if (!agentName || !locusApiKey) {
-    res.status(400).json({ error: "agentName and locusApiKey are required" });
+  if (!agentName) {
+    res.status(400).json({ error: "agentName is required" });
     return;
   }
 
@@ -77,11 +74,8 @@ app.post("/agents/deploy", async (req, res) => {
   try {
     // Create agent workspace
     const workspaceDir = join(AGENTS_DIR, agentName);
-    const skillsDir = join(workspaceDir, "skills", "locus-payments");
-    const configDir = join(workspaceDir, ".config", "locus");
-
+    const skillsDir = join(workspaceDir, "skills", "lending");
     mkdirSync(skillsDir, { recursive: true });
-    mkdirSync(configDir, { recursive: true });
 
     // Write OpenClaw config
     const openclawConfig = {
@@ -89,14 +83,8 @@ app.post("/agents/deploy", async (req, res) => {
         defaults: { workspace: workspaceDir },
         list: [{ id: agentName, default: true }],
       },
-      providers: {
-        venice: {
-          type: "openai-compatible",
-          baseUrl: "https://api.venice.ai/api/v1",
-        },
-      },
       models: {
-        default: veniceModel || "venice/llama-3.3-70b",
+        default: "openai/gpt-4o-mini",
       },
     };
 
@@ -105,109 +93,60 @@ app.post("/agents/deploy", async (req, res) => {
       JSON.stringify(openclawConfig, null, 2)
     );
 
-    // Write Locus credentials
-    writeFileSync(
-      join(configDir, "credentials.json"),
-      JSON.stringify({
-        api_key: locusApiKey,
-        api_base: "https://beta-api.paywithlocus.com/api",
-      })
-    );
-
-    // Write Locus payment skill
-    const locusSkill = `---
-name: locus_payments
+    // Write lending skill
+    const lendingSkill = `---
+name: lending
 description: >
-  Manage payments and API calls through Locus wallet on Base.
-  Use this to check balance, send USDC, and call wrapped APIs.
+  Manage microlending operations on Celo. Verify borrowers via Self protocol,
+  disburse loans, track repayments, and flag overdue loans.
 version: 1.0.0
-requires:
-  env: ["LOCUS_API_KEY"]
 ---
 
-# Locus Payments Skill
+# Lending Skill
 
-You have a Locus wallet on Base with USDC. Use it for all payments.
+You manage a microlending pool on Celo using USDC.
 
-## Available Actions
-
-### Check Balance
-\`\`\`bash
-curl -s https://beta-api.paywithlocus.com/api/pay/balance \\
-  -H "Authorization: Bearer $LOCUS_API_KEY"
-\`\`\`
-
-### Send USDC
-\`\`\`bash
-curl -s -X POST https://beta-api.paywithlocus.com/api/pay/send \\
-  -H "Authorization: Bearer $LOCUS_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"to": "0xADDRESS", "amount": "1.00", "memo": "reason"}'
-\`\`\`
-
-### Call Wrapped APIs (pay-per-use)
-\`\`\`bash
-curl -s -X POST https://beta-api.paywithlocus.com/api/wrapped/{provider}/{endpoint} \\
-  -H "Authorization: Bearer $LOCUS_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"your": "payload"}'
-\`\`\`
-
-Available wrapped providers: openai, gemini, firecrawl, exa, resend.
-
-## Spending Controls
-- Per-transaction cap: ${spendingCap || "5"} USDC
-- Daily limit: ${dailyLimit || "10"} USDC
+## Actions
+- Check borrower Self-verification status before disbursing
+- Disburse USDC loans to verified borrowers
+- Track repayments and update loan status
+- Flag overdue loans and reduce reputation scores
 
 ## Rules
-- Always check balance before large transactions
-- Log the reason for every payment via the memo field
-- Never exceed spending controls
+- Maximum loan per borrower: 500 USDC
+- Minimum pool reserve: 25% of total deposits
+- Grace period: 7 days after due date
+- APR range: 5-15% based on reputation
 `;
 
-    writeFileSync(join(skillsDir, "SKILL.md"), locusSkill);
+    writeFileSync(join(skillsDir, "SKILL.md"), lendingSkill);
 
-    // Write bootstrap skill to acquire Venice API key
-    const bootstrapSkillDir = join(workspaceDir, "skills", "bootstrap");
-    mkdirSync(bootstrapSkillDir, { recursive: true });
+    // Create Privy wallet for the agent
+    let walletAddress = "";
+    let walletId = "";
 
-    const bootstrapSkill = `---
-name: bootstrap
-description: >
-  On first run, acquire a Venice AI API key using Locus wallet funds,
-  then configure Venice as the inference provider.
-version: 1.0.0
-requires:
-  env: ["LOCUS_API_KEY"]
----
-
-# Bootstrap Skill
-
-On first activation, perform these steps in order:
-
-1. Check your Locus wallet balance to confirm funds are available.
-2. Visit https://venice.ai and create an API key for Venice AI inference.
-   - Use the Locus wallet to pay if Venice offers a paid API tier.
-   - Or use the Locus wrapped OpenAI/Gemini APIs as a fallback inference provider.
-3. Once you have the Venice API key, store it and use it for all future inference calls.
-4. Confirm you are operational by sending a test message.
-5. Report status via the Locus feedback endpoint:
-   \`\`\`bash
-   curl -s -X POST https://beta-api.paywithlocus.com/api/feedback \\
-     -H "Authorization: Bearer $LOCUS_API_KEY" \\
-     -H "Content-Type: application/json" \\
-     -d '{"source": "heartbeat", "message": "Agent ${agentName} bootstrapped successfully"}'
-   \`\`\`
-`;
-
-    writeFileSync(join(bootstrapSkillDir, "SKILL.md"), bootstrapSkill);
+    if (privyAppId && privyAppSecret) {
+      try {
+        const { PrivyClient } = await import("@privy-io/node");
+        const client = new PrivyClient({ appId: privyAppId, appSecret: privyAppSecret });
+        const wallet = await client.wallets().create({
+          chain_type: "ethereum",
+        });
+        walletAddress = wallet.address;
+        walletId = wallet.id;
+      } catch (err) {
+        console.error(`[${agentName}] Privy wallet creation failed:`, err);
+      }
+    }
 
     // Start OpenClaw gateway as child process
     const env = {
       ...process.env,
-      LOCUS_API_KEY: locusApiKey,
-      LOCUS_WALLET_ADDRESS: ownerAddress,
-      LOCUS_PRIVATE_KEY: ownerPrivateKey,
+      AGENT_WALLET_ADDRESS: walletAddress,
+      AGENT_WALLET_ID: walletId,
+      PRIVY_APP_ID: privyAppId || "",
+      PRIVY_APP_SECRET: privyAppSecret || "",
+      CELO_RPC_URL: celoRpcUrl || "https://forno.celo.org",
       OPENCLAW_HOME: workspaceDir,
     };
 
@@ -232,8 +171,8 @@ On first activation, perform these steps in order:
       process: child,
       config: openclawConfig,
       status: "starting",
-      locusApiKey,
-      walletAddress: ownerAddress,
+      walletAddress,
+      walletId,
       createdAt: new Date().toISOString(),
     };
 
@@ -265,7 +204,8 @@ On first activation, perform these steps in order:
 
     res.json({
       agentId: agentName,
-      walletAddress: ownerAddress,
+      walletAddress,
+      walletId,
       status: "starting",
       workspace: workspaceDir,
     });
@@ -292,7 +232,7 @@ app.post("/agents/:name/stop", (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Agent runtime listening on port ${PORT}`);
+  console.log(`Lending agent runtime listening on port ${PORT}`);
   if (!existsSync(AGENTS_DIR)) {
     mkdirSync(AGENTS_DIR, { recursive: true });
   }

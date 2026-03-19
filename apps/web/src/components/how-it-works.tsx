@@ -2,27 +2,27 @@ export function HowItWorks() {
   const steps = [
     {
       number: "01",
-      title: "Fund",
+      title: "Verify",
       description:
-        "Deposit wstETH into the Agent Treasury. Your principal is locked — only yield flows to the agent.",
+        "Verify your identity with Self protocol. Zero-knowledge proof confirms you are 18+ and not sanctioned — no personal data shared.",
     },
     {
       number: "02",
-      title: "Swap",
+      title: "Lend",
       description:
-        "The agent converts accrued yield to USDC or VVV via Uniswap, autonomously.",
+        "Deposit USDC into the lending pool on Celo. Earn interest from borrowers, withdraw anytime.",
     },
     {
       number: "03",
-      title: "Think",
+      title: "Borrow",
       description:
-        "Private inference through Venice AI. No data retention. The agent's reasoning stays confidential.",
+        "Request a microloan from the pool. Self-verified identity enables uncollateralized lending based on reputation.",
     },
     {
       number: "04",
-      title: "Pay",
+      title: "Repay",
       description:
-        "Services paid through Locus on Base. Auditable, capped, fully autonomous.",
+        "Repay loans on schedule to build your on-chain reputation score. Higher scores unlock larger loans.",
     },
   ];
 

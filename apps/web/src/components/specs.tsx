@@ -1,9 +1,9 @@
 export function Specs() {
   const specs = [
-    { label: "YIELD", value: "Lido stETH" },
-    { label: "INFERENCE", value: "Venice Private" },
-    { label: "SWAPS", value: "Uniswap" },
-    { label: "PAYMENTS", value: "Locus on Base" },
+    { label: "CHAIN", value: "Celo" },
+    { label: "IDENTITY", value: "Self Protocol" },
+    { label: "LENDING", value: "Microlending Pool" },
+    { label: "AGENT WALLET", value: "Privy" },
   ];
 
   return (

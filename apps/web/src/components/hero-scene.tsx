@@ -106,15 +106,15 @@ function ScreenContent() {
               <span>[x]</span>
             </div>
             <div style={{ opacity: 0.85 }}>
-              <span style={{ color: "#6b9bd2" }}>{">"}</span> Yield accrued: 0.003 stETH
+              <span style={{ color: "#6b9bd2" }}>{">"}</span> Identity verified via Self
               <br />
-              <span style={{ color: "#7aba7a" }}>{">"}</span> Swapped → 5.12 USDC
+              <span style={{ color: "#7aba7a" }}>{">"}</span> Deposited 100 USDC to pool
               <br />
-              <span style={{ color: "#c9a96e" }}>{">"}</span> Inference paid. Thinking...
+              <span style={{ color: "#c9a96e" }}>{">"}</span> Loan disbursed: 50 USDC
               <br />
-              <span style={{ color: "#e0ddd6" }}>{">"}</span> Task complete.
+              <span style={{ color: "#e0ddd6" }}>{">"}</span> Repayment received.
               <br />
-              <span style={{ color: "#9c958e" }}>{">"}</span> Ready when you are.
+              <span style={{ color: "#9c958e" }}>{">"}</span> Reputation +10.
               <br />
               <span
                 style={{

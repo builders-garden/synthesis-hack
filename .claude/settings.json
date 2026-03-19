@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.command' | grep -q '^git commit' && ./conversations/sync.sh && git add conversations/ 2>/dev/null || true",
+            "command": "jq -Rr '.' | grep -q 'git commit' && bash conversations/sync.sh && git add conversations/ 2>/dev/null || true",
             "timeout": 30,
             "statusMessage": "Syncing conversations..."
           }

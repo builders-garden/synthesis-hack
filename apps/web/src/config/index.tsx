@@ -1,6 +1,6 @@
 import { cookieStorage, createStorage } from "wagmi";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
-import { base, baseSepolia } from "@reown/appkit/networks";
+import { base, baseSepolia, celo, celoAlfajores } from "@reown/appkit/networks";
 import type { AppKitNetwork } from "@reown/appkit/networks";
 
 export const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
@@ -10,6 +10,8 @@ if (!projectId) {
 }
 
 export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
+  celo,
+  celoAlfajores,
   base,
   baseSepolia,
 ];

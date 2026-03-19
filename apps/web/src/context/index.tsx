@@ -9,9 +9,9 @@ import { cookieToInitialState, WagmiProvider, type Config } from "wagmi";
 const queryClient = new QueryClient();
 
 const metadata = {
-  name: "Yield Agent",
-  description: "Self-funded autonomous AI agent powered by stETH yield",
-  url: "https://yield-agent.builders.garden",
+  name: "OpenClaw Lending",
+  description: "Microlending on Celo with Self-verified identity",
+  url: "https://openclaw-lending.builders.garden",
   icons: [],
 };
 
