@@ -8,7 +8,7 @@ const HeroScene = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[400px] w-[320px] items-center justify-center md:h-[500px] md:w-[400px] lg:h-[540px] lg:w-[460px]">
+      <div className="flex h-[500px] w-[400px] items-center justify-center md:h-[620px] md:w-[520px] lg:h-[700px] lg:w-[600px]">
         <div className="font-mono text-sm text-ink-lighter animate-pulse">
           Loading 3D…
         </div>
