@@ -7,7 +7,7 @@ export function Header() {
     <header className="mx-auto max-w-6xl px-6 py-6">
       <div className="flex items-center justify-between">
         <Link href="/" className="font-serif text-xl font-bold text-ink">
-          Yield Agent
+          Self Agent
         </Link>
         <nav className="flex items-center gap-8">
           <Link

@@ -1,28 +1,82 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAccount } from "wagmi";
+import { useState } from "react";
+import { useAccount, useSendTransaction } from "wagmi";
+import { parseEther } from "viem";
 import { SelfVerification } from "@/components/self-verification";
 import { LendingDashboard } from "@/components/lending-dashboard";
 
 const STEPS = [
-  { id: "verify", label: "Verify" },
-  { id: "lend-borrow", label: "Lend & Borrow" },
+  { id: "deploy", label: "Deploy Agent" },
+  { id: "verify", label: "Verify Identity" },
+  { id: "fund", label: "Fund Agent" },
   { id: "monitor", label: "Monitor" },
 ] as const;
 
 type Step = (typeof STEPS)[number]["id"];
 
+const labelClass =
+  "font-mono text-xs uppercase tracking-[0.15em] text-ink-lighter";
+const inputClass =
+  "w-full border-b border-cream-dark bg-transparent px-0 py-2 text-sm text-ink placeholder:text-ink-lighter focus:border-ink focus:outline-none";
+
 export function DeployAgent() {
   const { address } = useAccount();
-  const [step, setStep] = useState<Step>("verify");
+  const { sendTransactionAsync } = useSendTransaction();
+  const [step, setStep] = useState<Step>("deploy");
   const [isVerified, setIsVerified] = useState(false);
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
+  const [deploying, setDeploying] = useState(false);
+  const [agentName, setAgentName] = useState("");
+  const [fundAmount, setFundAmount] = useState("");
+  const [funding, setFunding] = useState(false);
+  const [funded, setFunded] = useState(false);
+
+  const handleDeploy = async () => {
+    if (!agentName.trim()) return;
+    setDeploying(true);
+    try {
+      const res = await fetch("/api/agent/deploy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentName: agentName.trim() }),
+      });
+      const data = await res.json();
+      if (data.walletAddress) {
+        setAgentAddress(data.walletAddress);
+        setStep("verify");
+      }
+    } catch (err) {
+      console.error("Deploy failed:", err);
+    } finally {
+      setDeploying(false);
+    }
+  };
 
   const handleVerificationSuccess = (agentAddr: string) => {
     setIsVerified(true);
     setAgentAddress(agentAddr);
-    setStep("lend-borrow");
+    setStep("fund");
+  };
+
+  const handleFund = async () => {
+    if (!agentAddress || !fundAmount) return;
+    const amount = parseFloat(fundAmount);
+    if (!amount || amount <= 0) return;
+
+    setFunding(true);
+    try {
+      await sendTransactionAsync({
+        to: agentAddress as `0x${string}`,
+        value: parseEther(fundAmount),
+      });
+      setFunded(true);
+      setStep("monitor");
+    } catch (err) {
+      console.error("Funding failed:", err);
+    } finally {
+      setFunding(false);
+    }
   };
 
   const currentIdx = STEPS.findIndex((x) => x.id === step);
@@ -32,14 +86,12 @@ export function DeployAgent() {
       <div className="mx-auto max-w-md text-center">
         <h3 className="font-serif text-2xl text-ink">Connect your wallet.</h3>
         <p className="mt-4 text-sm leading-relaxed text-ink-light">
-          Connect your wallet to verify your identity and access the lending
-          pool on Celo.
+          Connect your wallet to deploy your autonomous agent and access
+          on-chain lending on Celo.
         </p>
       </div>
     );
   }
-
-  const displayAddress = agentAddress || address;
 
   return (
     <div className="space-y-12">
@@ -47,25 +99,25 @@ export function DeployAgent() {
       {agentAddress && (
         <div className="flex items-center justify-between border-b border-cream-dark pb-4">
           <div>
-            <span className="font-mono text-xs uppercase tracking-[0.15em] text-ink-lighter">
-              Agent ID
-            </span>
+            <span className={labelClass}>Agent Wallet</span>
             <p className="mt-1 font-mono text-sm text-ink">
               {agentAddress.slice(0, 6)}...{agentAddress.slice(-4)}
             </p>
           </div>
           <div>
-            <span className="font-mono text-xs uppercase tracking-[0.15em] text-ink-lighter">
-              Network
-            </span>
+            <span className={labelClass}>Network</span>
             <p className="mt-1 font-mono text-sm text-ink">Celo</p>
           </div>
           <div>
-            <span className="font-mono text-xs uppercase tracking-[0.15em] text-ink-lighter">
-              Identity
-            </span>
+            <span className={labelClass}>Identity</span>
             <p className="mt-1 font-mono text-sm text-ink">
-              Self (Soulbound NFT)
+              {isVerified ? "Self (8004 SBT)" : "Not verified"}
+            </p>
+          </div>
+          <div>
+            <span className={labelClass}>Status</span>
+            <p className="mt-1 font-mono text-sm text-ink">
+              {funded ? "Funded" : "Unfunded"}
             </p>
           </div>
         </div>
@@ -102,7 +154,43 @@ export function DeployAgent() {
         })}
       </div>
 
-      {/* Step 1: Verify */}
+      {/* Step 1: Deploy Agent */}
+      {step === "deploy" && (
+        <div className="mx-auto max-w-md">
+          <h3 className="font-serif text-xl text-ink">Deploy your agent</h3>
+          <p className="mt-2 text-sm text-ink-light">
+            Deploy a Dockerized OpenClaw agent instance. Your connected wallet
+            serves as the human anchor for the agent lifecycle.
+          </p>
+
+          <div className="mt-6 space-y-4">
+            <div>
+              <label className={labelClass}>Agent Name</label>
+              <input
+                type="text"
+                value={agentName}
+                onChange={(e) => setAgentName(e.target.value)}
+                placeholder="my-agent"
+                className={inputClass}
+              />
+            </div>
+
+            <button
+              onClick={handleDeploy}
+              disabled={deploying || !agentName.trim()}
+              className="w-full bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80 disabled:opacity-30"
+            >
+              {deploying ? "Deploying..." : "Deploy Agent"}
+            </button>
+          </div>
+
+          <p className="mt-4 text-xs text-ink-lighter">
+            Human wallet: {address.slice(0, 6)}...{address.slice(-4)}
+          </p>
+        </div>
+      )}
+
+      {/* Step 2: Verify Identity */}
       {step === "verify" && (
         <div className="mx-auto max-w-md">
           <SelfVerification
@@ -110,48 +198,87 @@ export function DeployAgent() {
             onSuccess={handleVerificationSuccess}
           />
 
-          {/* Skip verification for lending-only (optional) */}
+          {/* Skip verification */}
           <div className="mt-8 border-t border-cream-dark pt-6">
             <button
-              onClick={() => setStep("lend-borrow")}
+              onClick={() => setStep("fund")}
               className="font-mono text-xs text-ink-lighter hover:text-ink"
             >
-              Skip verification (lending only, no borrowing)
+              Skip verification (agent cannot borrow without 8004 SBT)
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 2: Lend & Borrow */}
-      {step === "lend-borrow" && (
-        <LendingDashboard
-          walletAddress={displayAddress}
-          isVerified={isVerified}
-        />
+      {/* Step 3: Fund Agent */}
+      {step === "fund" && agentAddress && (
+        <div className="mx-auto max-w-md">
+          <h3 className="font-serif text-xl text-ink">Fund your agent</h3>
+          <p className="mt-2 text-sm text-ink-light">
+            Send CELO to your agent wallet. The agent will automatically swap
+            CELO to USDC via Uniswap, retaining a small CELO reserve ($0.10)
+            for gas fees.
+          </p>
+
+          <div className="mt-6 space-y-4">
+            <div>
+              <label className={labelClass}>Amount</label>
+              <div className="flex items-baseline gap-2">
+                <input
+                  type="number"
+                  value={fundAmount}
+                  onChange={(e) => setFundAmount(e.target.value)}
+                  placeholder="0.00"
+                  className={inputClass}
+                />
+                <span className="font-mono text-xs text-ink-lighter">CELO</span>
+              </div>
+            </div>
+
+            <div className="rounded border border-cream-dark bg-cream px-4 py-3">
+              <p className="font-mono text-xs text-ink-lighter">
+                Agent wallet
+              </p>
+              <p className="mt-1 font-mono text-sm text-ink break-all">
+                {agentAddress}
+              </p>
+            </div>
+
+            <button
+              onClick={handleFund}
+              disabled={
+                funding || !fundAmount || parseFloat(fundAmount) <= 0
+              }
+              className="w-full bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80 disabled:opacity-30"
+            >
+              {funding ? "Sending CELO..." : "Send CELO"}
+            </button>
+          </div>
+
+          <p className="mt-4 text-xs text-ink-lighter">
+            The agent will bootstrap its liquidity by swapping CELO to USDC
+            via Uniswap on Celo.
+          </p>
+        </div>
       )}
 
-      {/* Step 3: Monitor */}
-      {step === "monitor" && (
+      {/* Step 4: Monitor */}
+      {step === "monitor" && agentAddress && (
         <LendingDashboard
-          walletAddress={displayAddress}
+          agentAddress={agentAddress}
+          humanAddress={address}
           isVerified={isVerified}
         />
       )}
 
       {/* Navigation */}
-      {step === "lend-borrow" && (
+      {step === "monitor" && (
         <div className="flex gap-4">
           <button
-            onClick={() => setStep("verify")}
+            onClick={() => setStep("fund")}
             className="border border-cream-dark px-8 py-4 font-mono text-sm uppercase tracking-wider text-ink-light transition-colors hover:border-ink hover:text-ink"
           >
-            Back to Verify
-          </button>
-          <button
-            onClick={() => setStep("monitor")}
-            className="bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80"
-          >
-            View Monitor
+            Back to Fund
           </button>
         </div>
       )}

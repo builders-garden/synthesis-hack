@@ -59,6 +59,18 @@ export async function POST(req: NextRequest) {
       envVars.PRIVY_APP_SECRET = privyAppSecret;
     }
 
+    // Pimlico: pass through for gasless transactions
+    const pimlicoApiKey = process.env.PIMLICO_API_KEY;
+    if (pimlicoApiKey) {
+      envVars.PIMLICO_API_KEY = pimlicoApiKey;
+    }
+
+    // Lending contract address
+    const lendingContract = process.env.LENDING_CONTRACT_ADDRESS;
+    if (lendingContract) {
+      envVars.LENDING_CONTRACT_ADDRESS = lendingContract;
+    }
+
     // Telegram: use frontend values, fall back to server env vars, skip if neither
     const telegramToken = body.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN;
     const telegramUsers = body.telegramAllowedUsers || process.env.TELEGRAM_ALLOWED_USERS;

@@ -26,14 +26,14 @@ export function Hero() {
           <h1 className="font-serif text-5xl leading-tight font-bold tracking-tight text-ink md:text-6xl lg:text-7xl">
             Introducing{" "}
             <em className="not-italic" style={{ fontStyle: "italic" }}>
-              OpenClaw Lending.
+              Self Agent.
             </em>
           </h1>
 
           <p className="text-lg leading-relaxed text-ink-light md:text-xl">
-            Microlending on Celo with Self-verified identity. Lend USDC to
-            earn interest, or borrow with your reputation — no collateral
-            needed.
+            Human-backed autonomous agents with on-chain lending on Celo.
+            Deploy an agent, verify your identity with Self.xyz, and let your
+            agent borrow, lend, and transact autonomously.
           </p>
 
           <div className="flex items-center gap-6">
@@ -41,10 +41,10 @@ export function Hero() {
               href="/dashboard"
               className="inline-flex items-center justify-center rounded-none bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80"
             >
-              Start Lending
+              Launch Agent
             </Link>
             <span className="font-mono text-sm text-ink-light">
-              Powered by Self + Celo
+              Powered by Self + Celo + OpenClaw
             </span>
           </div>
         </div>

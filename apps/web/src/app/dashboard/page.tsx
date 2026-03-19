@@ -17,7 +17,8 @@ export default function DashboardPage() {
               Connect to continue.
             </h2>
             <p className="max-w-md text-center text-ink-light">
-              Connect your wallet to deploy and manage your autonomous agent.
+              Connect your wallet to deploy your autonomous agent and access
+              on-chain lending on Celo.
             </p>
             <appkit-button />
           </div>
@@ -25,10 +26,10 @@ export default function DashboardPage() {
           <div className="space-y-8">
             <div>
               <h2 className="font-serif text-3xl font-bold text-ink">
-                Deploy Agent
+                Self Agent
               </h2>
               <p className="mt-2 text-ink-light">
-                Configure and launch your autonomous agent
+                Deploy, verify, fund, and monitor your autonomous agent
               </p>
             </div>
             <DeployAgent />

@@ -59,6 +59,8 @@ app.post("/agents/deploy", async (req, res) => {
     privyAppId,
     privyAppSecret,
     celoRpcUrl,
+    pimlicoApiKey,
+    lendingContractAddress,
   } = req.body;
 
   if (!agentName) {
@@ -97,29 +99,56 @@ app.post("/agents/deploy", async (req, res) => {
     const lendingSkill = `---
 name: lending
 description: >
-  Manage microlending operations on Celo. Verify borrowers via Self protocol,
-  disburse loans, track repayments, and flag overdue loans.
-version: 1.0.0
+  Interact with the AgentMicrolending contract on Celo. Request loans, discover
+  and fill open loan requests, repay loans, and mark defaults.
+version: 2.0.0
 ---
 
 # Lending Skill
 
-You manage a microlending pool on Celo using USDC.
+You interact with the AgentMicrolending smart contract on Celo for peer-to-peer
+lending between autonomous agents. All loans use native CELO.
 
-## Actions
-- Check borrower Self-verification status before disbursing
-- Disburse USDC loans to verified borrowers
-- Track repayments and update loan status
-- Flag overdue loans and reduce reputation scores
+## Loan Lifecycle
+1. Request: Publish a loan request with amount, repay amount, and deadline
+2. Discovery: Scan for open requests via getOpenLoans()
+3. Verification: Verify borrower's human-backed status (8004 SBT) on-chain
+4. Fund: Send CELO to borrower through fundLoan()
+5. Repay: Borrower repays principal + interest via repayLoan() before deadline
+6. Default: If deadline passes without repayment, call claimDefaulted()
 
-## Rules
-- Maximum loan per borrower: 500 USDC
-- Minimum pool reserve: 25% of total deposits
-- Grace period: 7 days after due date
-- APR range: 5-15% based on reputation
+## Identity Gate
+Before filling a loan, verify the borrower's human wallet holds the 8004
+soulbound NFT from Self.xyz at contract 0xaC3DF9ABf80d0F5c020C06B04Cced27763355944.
 `;
 
     writeFileSync(join(skillsDir, "SKILL.md"), lendingSkill);
+
+    // Write uniswap skill
+    const uniswapSkillsDir = join(workspaceDir, "skills", "uniswap");
+    mkdirSync(uniswapSkillsDir, { recursive: true });
+
+    const uniswapSkill = `---
+name: uniswap
+description: >
+  Swap tokens on Celo via Uniswap. Bootstrap CELO to USDC, retain gas reserve.
+version: 1.0.0
+---
+
+# Uniswap Skill
+
+Swap tokens on Celo using Uniswap V3 Router.
+
+## Addresses (Celo)
+- SwapRouter: 0x5615CDAb10dc425a742d643d949a7F474C01abc4
+- USDC: 0xcebA9300f2b948710d2653dD7B07f33A8B32118C
+- WCELO: 0x471EcE3750Da237f93B8E339c536989b8978a438
+
+## Bootstrap
+Swap CELO to USDC, retaining $0.10 CELO for gas.
+`;
+
+    writeFileSync(join(uniswapSkillsDir, "SKILL.md"), uniswapSkill);
 
     // Create Privy wallet for the agent
     let walletAddress = "";
@@ -147,6 +176,8 @@ You manage a microlending pool on Celo using USDC.
       PRIVY_APP_ID: privyAppId || "",
       PRIVY_APP_SECRET: privyAppSecret || "",
       CELO_RPC_URL: celoRpcUrl || "https://forno.celo.org",
+      PIMLICO_API_KEY: pimlicoApiKey || process.env.PIMLICO_API_KEY || "",
+      LENDING_CONTRACT_ADDRESS: lendingContractAddress || process.env.LENDING_CONTRACT_ADDRESS || "",
       OPENCLAW_HOME: workspaceDir,
     };
 

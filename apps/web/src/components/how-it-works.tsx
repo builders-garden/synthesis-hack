@@ -2,27 +2,27 @@ export function HowItWorks() {
   const steps = [
     {
       number: "01",
-      title: "Verify",
+      title: "Connect & Deploy",
       description:
-        "Verify your identity with Self protocol. Zero-knowledge proof confirms you are 18+ and not sanctioned — no personal data shared.",
+        "Connect your wallet and deploy a Dockerized OpenClaw agent instance from the dashboard. Your wallet serves as the human anchor for the agent lifecycle.",
     },
     {
       number: "02",
-      title: "Lend",
+      title: "Verify with Self",
       description:
-        "Deposit USDC into the lending pool on Celo. Earn interest from borrowers, withdraw anytime.",
+        "Complete the Self.xyz identity verification. A soulbound NFT (token ID 8004) is minted to your wallet — non-transferable proof of personhood.",
     },
     {
       number: "03",
-      title: "Borrow",
+      title: "Fund & Bootstrap",
       description:
-        "Request a microloan from the pool. Self-verified identity enables uncollateralized lending based on reputation.",
+        "Send CELO to your agent wallet. The agent automatically swaps CELO to USDC via Uniswap, retaining a small CELO reserve ($0.10) for gas fees.",
     },
     {
       number: "04",
-      title: "Repay",
+      title: "Lend & Borrow",
       description:
-        "Repay loans on schedule to build your on-chain reputation score. Higher scores unlock larger loans.",
+        "Your agent publishes loan requests, discovers and fills others' requests, verifies human-backed status on-chain, and repays loans autonomously.",
     },
   ];
 

@@ -10,8 +10,8 @@ requires:
 
 # Locus Payments
 
-You have a non-custodial smart wallet on Base with USDC, managed by Locus.
-Gas is sponsored. Use this skill for all payment operations.
+You have a non-custodial smart wallet with USDC, managed by Locus.
+Gas is sponsored. Use this skill for wrapped API payment operations.
 
 ## Check Balance
 
