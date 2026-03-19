@@ -141,6 +141,29 @@ contract AgentMicrolending {
 
         emit LoanFunded(loanId, msg.sender);
     }
+
+    // ──────────────────────────────────────────────
+    //  Borrower repayment
+    // ──────────────────────────────────────────────
+
+    /// @notice Repay a funded loan. Borrower sends `repayAmount` to the lender.
+    /// @param loanId The loan to repay.
+    function repayLoan(uint256 loanId) external payable nonReentrant {
+        LoanRequest storage loan = loans[loanId];
+
+        if (loan.status != LoanStatus.Funded) revert LoanNotFunded();
+        if (msg.sender != loan.borrower) revert NotBorrower();
+        if (block.timestamp > loan.deadline) revert DeadlineReached();
+        if (msg.value != loan.repayAmount) revert IncorrectAmount();
+
+        loan.status = LoanStatus.Repaid;
+
+        // Send repayment to lender
+        (bool success, ) = loan.actualLender.call{value: msg.value}("");
+        if (!success) revert TransferFailed();
+
+        emit LoanRepaid(loanId);
+    }
     // ──────────────────────────────────────────────
     //  View functions
     // ──────────────────────────────────────────────

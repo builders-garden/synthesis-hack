@@ -179,4 +179,61 @@ contract AgentMicrolendingTest is Test {
         vm.expectRevert(AgentMicrolending.DeadlineReached.selector);
         lending.fundLoan{value: 1 ether}(loanId);
     }
+
+    // ════════════════════════════════════════════
+    //  Repay loan
+    // ════════════════════════════════════════════
+
+    function _createAndFundLoan() internal returns (uint256) {
+        uint256 loanId = _createDefaultLoan();
+        vm.prank(lender);
+        lending.fundLoan{value: 1 ether}(loanId);
+        return loanId;
+    }
+
+    function test_repayLoan() public {
+        uint256 loanId = _createAndFundLoan();
+        uint256 lenderBal = lender.balance;
+
+        vm.prank(borrower);
+        lending.repayLoan{value: 1.1 ether}(loanId);
+
+        AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
+        assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Repaid));
+        assertEq(lender.balance, lenderBal + 1.1 ether);
+    }
+
+    function test_repayLoanNotBorrowerReverts() public {
+        uint256 loanId = _createAndFundLoan();
+
+        vm.prank(stranger);
+        vm.expectRevert(AgentMicrolending.NotBorrower.selector);
+        lending.repayLoan{value: 1.1 ether}(loanId);
+    }
+
+    function test_repayLoanWrongAmountReverts() public {
+        uint256 loanId = _createAndFundLoan();
+
+        vm.prank(borrower);
+        vm.expectRevert(AgentMicrolending.IncorrectAmount.selector);
+        lending.repayLoan{value: 1 ether}(loanId);
+    }
+
+    function test_repayLoanNotFundedReverts() public {
+        uint256 loanId = _createDefaultLoan();
+
+        vm.prank(borrower);
+        vm.expectRevert(AgentMicrolending.LoanNotFunded.selector);
+        lending.repayLoan{value: 1.1 ether}(loanId);
+    }
+
+    function test_repayLoanAfterDeadlineReverts() public {
+        uint256 loanId = _createAndFundLoan();
+
+        vm.warp(block.timestamp + 31 days);
+
+        vm.prank(borrower);
+        vm.expectRevert(AgentMicrolending.DeadlineReached.selector);
+        lending.repayLoan{value: 1.1 ether}(loanId);
+    }
 }
