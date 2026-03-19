@@ -2,18 +2,15 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
-import {YieldVault} from "../src/YieldVault.sol";
-import {YieldVaultFactory} from "../src/YieldVaultFactory.sol";
+import {AgentMicrolending} from "../src/AgentMicrolending.sol";
 
-contract Deploy is Script {
+contract DeployScript is Script {
     function run() external {
-        vm.startBroadcast();
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        vm.startBroadcast(deployerPrivateKey);
 
-        YieldVault implementation = new YieldVault();
-        YieldVaultFactory factory = new YieldVaultFactory(address(implementation));
-
-        console.log("YieldVault implementation:", address(implementation));
-        console.log("YieldVaultFactory:", address(factory));
+        AgentMicrolending lending = new AgentMicrolending();
+        console.log("AgentMicrolending deployed at:", address(lending));
 
         vm.stopBroadcast();
     }
