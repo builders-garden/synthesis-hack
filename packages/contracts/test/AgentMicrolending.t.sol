@@ -236,4 +236,80 @@ contract AgentMicrolendingTest is Test {
         vm.expectRevert(AgentMicrolending.DeadlineReached.selector);
         lending.repayLoan{value: 1.1 ether}(loanId);
     }
+
+    // ════════════════════════════════════════════
+    //  Cancel loan request
+    // ════════════════════════════════════════════
+
+    function test_cancelLoanRequest() public {
+        uint256 loanId = _createDefaultLoan();
+
+        vm.prank(borrower);
+        lending.cancelLoanRequest(loanId);
+
+        AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
+        assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Cancelled));
+    }
+
+    function test_cancelLoanNotBorrowerReverts() public {
+        uint256 loanId = _createDefaultLoan();
+
+        vm.prank(stranger);
+        vm.expectRevert(AgentMicrolending.NotBorrower.selector);
+        lending.cancelLoanRequest(loanId);
+    }
+
+    function test_cancelLoanNotOpenReverts() public {
+        uint256 loanId = _createAndFundLoan();
+
+        vm.prank(borrower);
+        vm.expectRevert(AgentMicrolending.LoanNotOpen.selector);
+        lending.cancelLoanRequest(loanId);
+    }
+
+    // ════════════════════════════════════════════
+    //  Claim defaulted
+    // ════════════════════════════════════════════
+
+    function test_claimDefaulted() public {
+        uint256 loanId = _createAndFundLoan();
+
+        vm.warp(block.timestamp + 31 days);
+
+        vm.prank(lender);
+        lending.claimDefaulted(loanId);
+
+        AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
+        assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Defaulted));
+    }
+
+    function test_claimDefaultedBeforeDeadlineReverts() public {
+        uint256 loanId = _createAndFundLoan();
+
+        vm.prank(lender);
+        vm.expectRevert(AgentMicrolending.DeadlineNotReached.selector);
+        lending.claimDefaulted(loanId);
+    }
+
+    function test_claimDefaultedNotFundedReverts() public {
+        uint256 loanId = _createDefaultLoan();
+
+        vm.warp(block.timestamp + 31 days);
+
+        vm.prank(lender);
+        vm.expectRevert(AgentMicrolending.LoanNotFunded.selector);
+        lending.claimDefaulted(loanId);
+    }
+
+    function test_claimDefaultedAnyoneCanCall() public {
+        uint256 loanId = _createAndFundLoan();
+
+        vm.warp(block.timestamp + 31 days);
+
+        vm.prank(stranger);
+        lending.claimDefaulted(loanId);
+
+        AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
+        assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Defaulted));
+    }
 }

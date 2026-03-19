@@ -115,6 +115,20 @@ contract AgentMicrolending {
     }
 
 
+
+    /// @notice Cancel an open (unfunded) loan request.
+    /// @param loanId The loan to cancel.
+    function cancelLoanRequest(uint256 loanId) external {
+        LoanRequest storage loan = loans[loanId];
+
+        if (msg.sender != loan.borrower) revert NotBorrower();
+        if (loan.status != LoanStatus.Open) revert LoanNotOpen();
+
+        loan.status = LoanStatus.Cancelled;
+
+        emit LoanCancelled(loanId);
+    }
+
     // ──────────────────────────────────────────────
     //  Lender actions
     // ──────────────────────────────────────────────
@@ -144,6 +158,21 @@ contract AgentMicrolending {
 
     // ──────────────────────────────────────────────
     //  Borrower repayment
+
+    /// @notice Mark a funded loan as defaulted after the repayment deadline has passed.
+    ///         Since loans are non-collateralized, this only updates the status (reputation signal).
+    /// @param loanId The loan to mark as defaulted.
+    function claimDefaulted(uint256 loanId) external {
+        LoanRequest storage loan = loans[loanId];
+
+        if (loan.status != LoanStatus.Funded) revert LoanNotFunded();
+        if (block.timestamp <= loan.deadline) revert DeadlineNotReached();
+
+        loan.status = LoanStatus.Defaulted;
+
+        emit LoanDefaulted(loanId);
+    }
+
     // ──────────────────────────────────────────────
 
     /// @notice Repay a funded loan. Borrower sends `repayAmount` to the lender.
