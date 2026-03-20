@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
 /// @title AgentMicrolending
 /// @notice P2P non-collateralized microlending protocol for autonomous agents.
 ///         Agents are simply EVM addresses. All data is stored on-chain and
 ///         queryable via view functions — no indexer or database required.
+///         All loans are denominated in a single ERC-20 token set at deployment.
 contract AgentMicrolending {
+    using SafeERC20 for IERC20;
+
     // ──────────────────────────────────────────────
     //  Types
     // ──────────────────────────────────────────────
@@ -23,7 +29,7 @@ contract AgentMicrolending {
         address borrower;
         address lender; // requested lender (address(0) = open to anyone)
         address actualLender; // who actually funded the loan
-        uint256 amount; // loan amount in native token (wei)
+        uint256 amount; // loan amount in token units
         uint256 repayAmount; // principal + interest borrower must repay
         uint256 deadline; // unix timestamp — must repay by this time
         uint256 fundedAt; // timestamp when funded (0 if not funded)
@@ -33,6 +39,8 @@ contract AgentMicrolending {
     // ──────────────────────────────────────────────
     //  State
     // ──────────────────────────────────────────────
+
+    IERC20 public immutable token;
 
     LoanRequest[] private loans;
 
@@ -74,7 +82,17 @@ contract AgentMicrolending {
     error DeadlineNotReached();
     error DeadlineReached();
     error Reentrancy();
-    error TransferFailed();
+    error ZeroAddress();
+
+    // ──────────────────────────────────────────────
+    //  Constructor
+    // ──────────────────────────────────────────────
+
+    /// @param _token The ERC-20 token used for all loans (e.g. USDC).
+    constructor(address _token) {
+        if (_token == address(0)) revert ZeroAddress();
+        token = IERC20(_token);
+    }
 
     // ──────────────────────────────────────────────
     //  Modifiers
@@ -92,7 +110,7 @@ contract AgentMicrolending {
     // ──────────────────────────────────────────────
 
     /// @notice Create a new loan request.
-    /// @param amount      Amount to borrow (in native token wei).
+    /// @param amount      Amount to borrow (in token units, e.g. USDC with 6 decimals).
     /// @param repayAmount Total amount to repay (principal + interest).
     /// @param deadline    Unix timestamp by which the loan must be repaid.
     /// @param lender      Specific lender address, or address(0) for open request.
@@ -143,15 +161,15 @@ contract AgentMicrolending {
     //  Lender actions
     // ──────────────────────────────────────────────
 
-    /// @notice Fund an open loan request. Sends `amount` native token to the borrower.
+    /// @notice Fund an open loan request. Transfers `amount` tokens from the lender to the borrower.
+    ///         The lender must have approved this contract for at least `amount` tokens before calling.
     /// @param loanId The loan to fund.
-    function fundLoan(uint256 loanId) external payable nonReentrant {
+    function fundLoan(uint256 loanId) external nonReentrant {
         LoanRequest storage loan = loans[loanId];
 
         if (loan.status != LoanStatus.Open) revert LoanNotOpen();
         if (block.timestamp >= loan.deadline) revert DeadlineReached();
         if (loan.lender != address(0) && msg.sender != loan.lender) revert NotAuthorizedLender();
-        if (msg.value != loan.amount) revert IncorrectAmount();
 
         loan.status = LoanStatus.Funded;
         loan.actualLender = msg.sender;
@@ -159,9 +177,8 @@ contract AgentMicrolending {
 
         _lenderLoans[msg.sender].push(loanId);
 
-        // Transfer funds to borrower
-        (bool success,) = loan.borrower.call{value: msg.value}("");
-        if (!success) revert TransferFailed();
+        // Transfer tokens from lender to borrower
+        token.safeTransferFrom(msg.sender, loan.borrower, loan.amount);
 
         emit LoanFunded(loanId, msg.sender);
     }
@@ -184,24 +201,24 @@ contract AgentMicrolending {
     //  Borrower repayment
     // ──────────────────────────────────────────────
 
-    /// @notice Repay a funded loan. Borrower sends `repayAmount` to the lender.
+    /// @notice Repay a funded loan. Transfers `repayAmount` tokens from the borrower to the lender.
+    ///         The borrower must have approved this contract for at least `repayAmount` tokens before calling.
     /// @param loanId The loan to repay.
-    function repayLoan(uint256 loanId) external payable nonReentrant {
+    function repayLoan(uint256 loanId) external nonReentrant {
         LoanRequest storage loan = loans[loanId];
 
         if (loan.status != LoanStatus.Funded) revert LoanNotFunded();
         if (msg.sender != loan.borrower) revert NotBorrower();
         if (block.timestamp > loan.deadline) revert DeadlineReached();
-        if (msg.value != loan.repayAmount) revert IncorrectAmount();
 
         loan.status = LoanStatus.Repaid;
 
-        // Send repayment to lender
-        (bool success,) = loan.actualLender.call{value: msg.value}("");
-        if (!success) revert TransferFailed();
+        // Transfer repayment from borrower to lender
+        token.safeTransferFrom(msg.sender, loan.actualLender, loan.repayAmount);
 
         emit LoanRepaid(loanId);
     }
+
     // ──────────────────────────────────────────────
     //  View functions
     // ──────────────────────────────────────────────

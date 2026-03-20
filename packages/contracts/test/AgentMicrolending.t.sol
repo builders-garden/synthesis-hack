@@ -3,19 +3,61 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import {AgentMicrolending} from "../src/AgentMicrolending.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+/// @dev Minimal mock USDC (6 decimals) for testing.
+contract MockUSDC is ERC20 {
+    constructor() ERC20("USD Coin", "USDC") {}
+
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+}
 
 contract AgentMicrolendingTest is Test {
     AgentMicrolending lending;
+    MockUSDC usdc;
 
     address borrower = makeAddr("borrower");
     address lender = makeAddr("lender");
     address stranger = makeAddr("stranger");
 
+    // 1 USDC = 1e6
+    uint256 constant ONE_USDC = 1e6;
+
     function setUp() public {
-        lending = new AgentMicrolending();
-        vm.deal(borrower, 100 ether);
-        vm.deal(lender, 100 ether);
-        vm.deal(stranger, 100 ether);
+        usdc = new MockUSDC();
+        lending = new AgentMicrolending(address(usdc));
+
+        // Mint USDC to test accounts
+        usdc.mint(borrower, 1000 * ONE_USDC);
+        usdc.mint(lender, 1000 * ONE_USDC);
+        usdc.mint(stranger, 1000 * ONE_USDC);
+
+        // Approve lending contract to spend tokens
+        vm.prank(borrower);
+        usdc.approve(address(lending), type(uint256).max);
+        vm.prank(lender);
+        usdc.approve(address(lending), type(uint256).max);
+        vm.prank(stranger);
+        usdc.approve(address(lending), type(uint256).max);
+    }
+
+    // ════════════════════════════════════════════
+    //  Constructor
+    // ════════════════════════════════════════════
+
+    function test_constructorSetsToken() public view {
+        assertEq(address(lending.token()), address(usdc));
+    }
+
+    function test_constructorZeroAddressReverts() public {
+        vm.expectRevert(AgentMicrolending.ZeroAddress.selector);
+        new AgentMicrolending(address(0));
     }
 
     // ════════════════════════════════════════════
@@ -26,7 +68,7 @@ contract AgentMicrolendingTest is Test {
         uint256 deadline = block.timestamp + 30 days;
 
         vm.prank(borrower);
-        uint256 loanId = lending.createLoanRequest(1 ether, 1.1 ether, deadline, lender);
+        uint256 loanId = lending.createLoanRequest(100 * ONE_USDC, 110 * ONE_USDC, deadline, lender);
 
         assertEq(loanId, 0);
         assertEq(lending.totalLoans(), 1);
@@ -36,8 +78,8 @@ contract AgentMicrolendingTest is Test {
         assertEq(loan.borrower, borrower);
         assertEq(loan.lender, lender);
         assertEq(loan.actualLender, address(0));
-        assertEq(loan.amount, 1 ether);
-        assertEq(loan.repayAmount, 1.1 ether);
+        assertEq(loan.amount, 100 * ONE_USDC);
+        assertEq(loan.repayAmount, 110 * ONE_USDC);
         assertEq(loan.deadline, deadline);
         assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Open));
     }
@@ -46,7 +88,7 @@ contract AgentMicrolendingTest is Test {
         uint256 deadline = block.timestamp + 30 days;
 
         vm.prank(borrower);
-        uint256 loanId = lending.createLoanRequest(1 ether, 1.1 ether, deadline, address(0));
+        uint256 loanId = lending.createLoanRequest(100 * ONE_USDC, 110 * ONE_USDC, deadline, address(0));
 
         AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
         assertEq(loan.lender, address(0));
@@ -55,25 +97,25 @@ contract AgentMicrolendingTest is Test {
     function test_createLoanZeroAmountReverts() public {
         vm.prank(borrower);
         vm.expectRevert(AgentMicrolending.ZeroAmount.selector);
-        lending.createLoanRequest(0, 1 ether, block.timestamp + 1 days, lender);
+        lending.createLoanRequest(0, 100 * ONE_USDC, block.timestamp + 1 days, lender);
     }
 
     function test_createLoanRepayLessThanAmountReverts() public {
         vm.prank(borrower);
         vm.expectRevert(AgentMicrolending.RepayTooLow.selector);
-        lending.createLoanRequest(1 ether, 0.5 ether, block.timestamp + 1 days, lender);
+        lending.createLoanRequest(100 * ONE_USDC, 50 * ONE_USDC, block.timestamp + 1 days, lender);
     }
 
     function test_createLoanDeadlineInPastReverts() public {
         vm.prank(borrower);
         vm.expectRevert(AgentMicrolending.DeadlineInPast.selector);
-        lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp - 1, lender);
+        lending.createLoanRequest(100 * ONE_USDC, 110 * ONE_USDC, block.timestamp - 1, lender);
     }
 
     function test_createMultipleLoans() public {
         vm.startPrank(borrower);
-        uint256 id0 = lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, lender);
-        uint256 id1 = lending.createLoanRequest(2 ether, 2.2 ether, block.timestamp + 60 days, address(0));
+        uint256 id0 = lending.createLoanRequest(100 * ONE_USDC, 110 * ONE_USDC, block.timestamp + 30 days, lender);
+        uint256 id1 = lending.createLoanRequest(200 * ONE_USDC, 220 * ONE_USDC, block.timestamp + 60 days, address(0));
         vm.stopPrank();
 
         assertEq(id0, 0);
@@ -83,8 +125,8 @@ contract AgentMicrolendingTest is Test {
 
     function test_borrowerLoansTracked() public {
         vm.startPrank(borrower);
-        lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, lender);
-        lending.createLoanRequest(2 ether, 2.2 ether, block.timestamp + 60 days, address(0));
+        lending.createLoanRequest(100 * ONE_USDC, 110 * ONE_USDC, block.timestamp + 30 days, lender);
+        lending.createLoanRequest(200 * ONE_USDC, 220 * ONE_USDC, block.timestamp + 60 days, address(0));
         vm.stopPrank();
 
         uint256[] memory ids = lending.getBorrowerLoans(borrower);
@@ -99,33 +141,33 @@ contract AgentMicrolendingTest is Test {
 
     function _createDefaultLoan() internal returns (uint256) {
         vm.prank(borrower);
-        return lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, lender);
+        return lending.createLoanRequest(100 * ONE_USDC, 110 * ONE_USDC, block.timestamp + 30 days, lender);
     }
 
     function _createOpenLoan() internal returns (uint256) {
         vm.prank(borrower);
-        return lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, address(0));
+        return lending.createLoanRequest(100 * ONE_USDC, 110 * ONE_USDC, block.timestamp + 30 days, address(0));
     }
 
     function test_fundLoan() public {
         uint256 loanId = _createDefaultLoan();
-        uint256 borrowerBal = borrower.balance;
+        uint256 borrowerBal = usdc.balanceOf(borrower);
 
         vm.prank(lender);
-        lending.fundLoan{value: 1 ether}(loanId);
+        lending.fundLoan(loanId);
 
         AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
         assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Funded));
         assertEq(loan.actualLender, lender);
         assertTrue(loan.fundedAt > 0);
-        assertEq(borrower.balance, borrowerBal + 1 ether);
+        assertEq(usdc.balanceOf(borrower), borrowerBal + 100 * ONE_USDC);
     }
 
     function test_fundOpenLoan() public {
         uint256 loanId = _createOpenLoan();
 
         vm.prank(stranger);
-        lending.fundLoan{value: 1 ether}(loanId);
+        lending.fundLoan(loanId);
 
         AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
         assertEq(loan.actualLender, stranger);
@@ -137,33 +179,25 @@ contract AgentMicrolendingTest is Test {
 
         vm.prank(stranger);
         vm.expectRevert(AgentMicrolending.NotAuthorizedLender.selector);
-        lending.fundLoan{value: 1 ether}(loanId);
-    }
-
-    function test_fundLoanWrongAmountReverts() public {
-        uint256 loanId = _createDefaultLoan();
-
-        vm.prank(lender);
-        vm.expectRevert(AgentMicrolending.IncorrectAmount.selector);
-        lending.fundLoan{value: 0.5 ether}(loanId);
+        lending.fundLoan(loanId);
     }
 
     function test_fundLoanNotOpenReverts() public {
         uint256 loanId = _createDefaultLoan();
 
         vm.prank(lender);
-        lending.fundLoan{value: 1 ether}(loanId);
+        lending.fundLoan(loanId);
 
         vm.prank(lender);
         vm.expectRevert(AgentMicrolending.LoanNotOpen.selector);
-        lending.fundLoan{value: 1 ether}(loanId);
+        lending.fundLoan(loanId);
     }
 
     function test_fundLoanTracksLenderLoans() public {
         uint256 loanId = _createDefaultLoan();
 
         vm.prank(lender);
-        lending.fundLoan{value: 1 ether}(loanId);
+        lending.fundLoan(loanId);
 
         uint256[] memory ids = lending.getLenderLoans(lender);
         assertEq(ids.length, 1);
@@ -177,7 +211,7 @@ contract AgentMicrolendingTest is Test {
 
         vm.prank(lender);
         vm.expectRevert(AgentMicrolending.DeadlineReached.selector);
-        lending.fundLoan{value: 1 ether}(loanId);
+        lending.fundLoan(loanId);
     }
 
     // ════════════════════════════════════════════
@@ -187,20 +221,20 @@ contract AgentMicrolendingTest is Test {
     function _createAndFundLoan() internal returns (uint256) {
         uint256 loanId = _createDefaultLoan();
         vm.prank(lender);
-        lending.fundLoan{value: 1 ether}(loanId);
+        lending.fundLoan(loanId);
         return loanId;
     }
 
     function test_repayLoan() public {
         uint256 loanId = _createAndFundLoan();
-        uint256 lenderBal = lender.balance;
+        uint256 lenderBal = usdc.balanceOf(lender);
 
         vm.prank(borrower);
-        lending.repayLoan{value: 1.1 ether}(loanId);
+        lending.repayLoan(loanId);
 
         AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
         assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Repaid));
-        assertEq(lender.balance, lenderBal + 1.1 ether);
+        assertEq(usdc.balanceOf(lender), lenderBal + 110 * ONE_USDC);
     }
 
     function test_repayLoanNotBorrowerReverts() public {
@@ -208,15 +242,7 @@ contract AgentMicrolendingTest is Test {
 
         vm.prank(stranger);
         vm.expectRevert(AgentMicrolending.NotBorrower.selector);
-        lending.repayLoan{value: 1.1 ether}(loanId);
-    }
-
-    function test_repayLoanWrongAmountReverts() public {
-        uint256 loanId = _createAndFundLoan();
-
-        vm.prank(borrower);
-        vm.expectRevert(AgentMicrolending.IncorrectAmount.selector);
-        lending.repayLoan{value: 1 ether}(loanId);
+        lending.repayLoan(loanId);
     }
 
     function test_repayLoanNotFundedReverts() public {
@@ -224,7 +250,7 @@ contract AgentMicrolendingTest is Test {
 
         vm.prank(borrower);
         vm.expectRevert(AgentMicrolending.LoanNotFunded.selector);
-        lending.repayLoan{value: 1.1 ether}(loanId);
+        lending.repayLoan(loanId);
     }
 
     function test_repayLoanAfterDeadlineReverts() public {
@@ -234,7 +260,7 @@ contract AgentMicrolendingTest is Test {
 
         vm.prank(borrower);
         vm.expectRevert(AgentMicrolending.DeadlineReached.selector);
-        lending.repayLoan{value: 1.1 ether}(loanId);
+        lending.repayLoan(loanId);
     }
 
     // ════════════════════════════════════════════
@@ -320,14 +346,14 @@ contract AgentMicrolendingTest is Test {
     function test_getOpenLoans() public {
         // Create 3 loans, fund one
         vm.startPrank(borrower);
-        lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, address(0));
-        lending.createLoanRequest(2 ether, 2.2 ether, block.timestamp + 30 days, address(0));
-        lending.createLoanRequest(3 ether, 3.3 ether, block.timestamp + 30 days, address(0));
+        lending.createLoanRequest(100 * ONE_USDC, 110 * ONE_USDC, block.timestamp + 30 days, address(0));
+        lending.createLoanRequest(200 * ONE_USDC, 220 * ONE_USDC, block.timestamp + 30 days, address(0));
+        lending.createLoanRequest(300 * ONE_USDC, 330 * ONE_USDC, block.timestamp + 30 days, address(0));
         vm.stopPrank();
 
         // Fund loan 1
         vm.prank(lender);
-        lending.fundLoan{value: 2 ether}(1);
+        lending.fundLoan(1);
 
         AgentMicrolending.LoanRequest[] memory openLoans = lending.getOpenLoans(0, 10);
         assertEq(openLoans.length, 2);
@@ -339,7 +365,7 @@ contract AgentMicrolendingTest is Test {
         // Create 5 open loans
         vm.startPrank(borrower);
         for (uint256 i = 0; i < 5; i++) {
-            lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, address(0));
+            lending.createLoanRequest(100 * ONE_USDC, 110 * ONE_USDC, block.timestamp + 30 days, address(0));
         }
         vm.stopPrank();
 
@@ -356,13 +382,13 @@ contract AgentMicrolendingTest is Test {
 
     function test_getBorrowerOpenLoans() public {
         vm.startPrank(borrower);
-        lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, address(0));
-        lending.createLoanRequest(2 ether, 2.2 ether, block.timestamp + 30 days, address(0));
+        lending.createLoanRequest(100 * ONE_USDC, 110 * ONE_USDC, block.timestamp + 30 days, address(0));
+        lending.createLoanRequest(200 * ONE_USDC, 220 * ONE_USDC, block.timestamp + 30 days, address(0));
         vm.stopPrank();
 
         // Fund one
         vm.prank(lender);
-        lending.fundLoan{value: 1 ether}(0);
+        lending.fundLoan(0);
 
         AgentMicrolending.LoanRequest[] memory openLoans = lending.getBorrowerOpenLoans(borrower);
         assertEq(openLoans.length, 1);
@@ -372,18 +398,18 @@ contract AgentMicrolendingTest is Test {
     function test_getLenderActiveLoanIds() public {
         // Create and fund two loans
         vm.prank(borrower);
-        lending.createLoanRequest(1 ether, 1.1 ether, block.timestamp + 30 days, address(0));
+        lending.createLoanRequest(100 * ONE_USDC, 110 * ONE_USDC, block.timestamp + 30 days, address(0));
         vm.prank(borrower);
-        lending.createLoanRequest(2 ether, 2.2 ether, block.timestamp + 30 days, address(0));
+        lending.createLoanRequest(200 * ONE_USDC, 220 * ONE_USDC, block.timestamp + 30 days, address(0));
 
         vm.prank(lender);
-        lending.fundLoan{value: 1 ether}(0);
+        lending.fundLoan(0);
         vm.prank(lender);
-        lending.fundLoan{value: 2 ether}(1);
+        lending.fundLoan(1);
 
         // Repay one
         vm.prank(borrower);
-        lending.repayLoan{value: 1.1 ether}(0);
+        lending.repayLoan(0);
 
         uint256[] memory activeIds = lending.getLenderActiveLoanIds(lender);
         assertEq(activeIds.length, 1);
@@ -402,23 +428,23 @@ contract AgentMicrolendingTest is Test {
         // 1. Borrower creates loan request
         uint256 deadline = block.timestamp + 30 days;
         vm.prank(borrower);
-        uint256 loanId = lending.createLoanRequest(5 ether, 5.5 ether, deadline, lender);
+        uint256 loanId = lending.createLoanRequest(500 * ONE_USDC, 550 * ONE_USDC, deadline, lender);
 
         // 2. Verify open state
         AgentMicrolending.LoanRequest memory loan = lending.getLoan(loanId);
         assertEq(uint8(loan.status), uint8(AgentMicrolending.LoanStatus.Open));
 
         // 3. Lender funds it
-        uint256 borrowerBal = borrower.balance;
+        uint256 borrowerBal = usdc.balanceOf(borrower);
         vm.prank(lender);
-        lending.fundLoan{value: 5 ether}(loanId);
-        assertEq(borrower.balance, borrowerBal + 5 ether);
+        lending.fundLoan(loanId);
+        assertEq(usdc.balanceOf(borrower), borrowerBal + 500 * ONE_USDC);
 
         // 4. Borrower repays within deadline
-        uint256 lenderBal = lender.balance;
+        uint256 lenderBal = usdc.balanceOf(lender);
         vm.prank(borrower);
-        lending.repayLoan{value: 5.5 ether}(loanId);
-        assertEq(lender.balance, lenderBal + 5.5 ether);
+        lending.repayLoan(loanId);
+        assertEq(usdc.balanceOf(lender), lenderBal + 550 * ONE_USDC);
 
         // 5. Loan is repaid
         loan = lending.getLoan(loanId);
@@ -445,32 +471,40 @@ contract AgentMicrolendingTest is Test {
         address agent1 = makeAddr("agent1");
         address agent2 = makeAddr("agent2");
         address agent3 = makeAddr("agent3");
-        vm.deal(agent1, 100 ether);
-        vm.deal(agent2, 100 ether);
-        vm.deal(agent3, 100 ether);
+
+        // Mint and approve for agents
+        usdc.mint(agent1, 1000 * ONE_USDC);
+        usdc.mint(agent2, 1000 * ONE_USDC);
+        usdc.mint(agent3, 1000 * ONE_USDC);
+        vm.prank(agent1);
+        usdc.approve(address(lending), type(uint256).max);
+        vm.prank(agent2);
+        usdc.approve(address(lending), type(uint256).max);
+        vm.prank(agent3);
+        usdc.approve(address(lending), type(uint256).max);
 
         // Agent1 requests loan from agent2
         vm.prank(agent1);
-        uint256 loan1 = lending.createLoanRequest(1 ether, 1.05 ether, block.timestamp + 7 days, agent2);
+        uint256 loan1 = lending.createLoanRequest(100 * ONE_USDC, 105 * ONE_USDC, block.timestamp + 7 days, agent2);
 
         // Agent1 also requests open loan
         vm.prank(agent1);
-        uint256 loan2 = lending.createLoanRequest(2 ether, 2.1 ether, block.timestamp + 14 days, address(0));
+        uint256 loan2 = lending.createLoanRequest(200 * ONE_USDC, 210 * ONE_USDC, block.timestamp + 14 days, address(0));
 
         // Agent2 funds first loan
         vm.prank(agent2);
-        lending.fundLoan{value: 1 ether}(loan1);
+        lending.fundLoan(loan1);
 
         // Agent3 funds open loan
         vm.prank(agent3);
-        lending.fundLoan{value: 2 ether}(loan2);
+        lending.fundLoan(loan2);
 
         // Agent1 repays both
         vm.prank(agent1);
-        lending.repayLoan{value: 1.05 ether}(loan1);
+        lending.repayLoan(loan1);
 
         vm.prank(agent1);
-        lending.repayLoan{value: 2.1 ether}(loan2);
+        lending.repayLoan(loan2);
 
         // Verify all repaid
         assertEq(uint8(lending.getLoan(loan1).status), uint8(AgentMicrolending.LoanStatus.Repaid));
