@@ -12,7 +12,7 @@
     "@types/express": "^5.0.6",
     "express": "^5.2.1",
     "openclaw": "^2026.3.13",
-    "permissionless": "^0.3.4",
+    "permissionless": "^0.2.57",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5"

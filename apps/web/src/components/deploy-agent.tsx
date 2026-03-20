@@ -1,14 +1,34 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useSendTransaction } from "wagmi";
+import { useAccount, useSendTransaction, useWriteContract } from "wagmi";
 import { parseEther } from "viem";
 import { SelfVerification } from "@/components/self-verification";
 import { LendingDashboard } from "@/components/lending-dashboard";
 
+// Self Agent Registry on Celo mainnet
+const REGISTRY_ADDRESS =
+  "0x62E37d0f6c5f67784b8828B3dF68BCDbB2e55095" as const;
+
+const REGISTRY_ABI = [
+  {
+    name: "setAgentWallet",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agentId", type: "uint256" },
+      { name: "newWallet", type: "address" },
+      { name: "deadline", type: "uint256" },
+      { name: "signature", type: "bytes" },
+    ],
+    outputs: [],
+  },
+] as const;
+
 const STEPS = [
   { id: "deploy", label: "Deploy Agent" },
   { id: "verify", label: "Verify Identity" },
+  { id: "delegate", label: "Delegate" },
   { id: "fund", label: "Fund Agent" },
   { id: "monitor", label: "Monitor" },
 ] as const;
@@ -23,10 +43,16 @@ const inputClass =
 export function DeployAgent() {
   const { address } = useAccount();
   const { sendTransactionAsync } = useSendTransaction();
+  const { writeContractAsync } = useWriteContract();
   const [step, setStep] = useState<Step>("deploy");
   const [isVerified, setIsVerified] = useState(false);
+  const [isDelegated, setIsDelegated] = useState(false);
+  // With EIP-7702, walletAddress (Privy EOA) IS the smart account address
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
+  const [walletId, setWalletId] = useState<string | null>(null);
+  const [agentId, setAgentId] = useState<number | null>(null);
   const [deploying, setDeploying] = useState(false);
+  const [delegating, setDelegating] = useState(false);
   const [agentName, setAgentName] = useState("");
   const [fundAmount, setFundAmount] = useState("");
   const [funding, setFunding] = useState(false);
@@ -42,10 +68,12 @@ export function DeployAgent() {
         body: JSON.stringify({ agentName: agentName.trim() }),
       });
       const data = await res.json();
-      if (data.walletAddress) {
-        setAgentAddress(data.walletAddress);
-        setStep("verify");
-      }
+      if (data.error) throw new Error(data.error);
+
+      setWalletId(data.walletId);
+      // EIP-7702: EOA address = smart account address
+      setAgentAddress(data.walletAddress);
+      setStep("verify");
     } catch (err) {
       console.error("Deploy failed:", err);
     } finally {
@@ -53,10 +81,55 @@ export function DeployAgent() {
     }
   };
 
-  const handleVerificationSuccess = (agentAddr: string) => {
+  const handleVerificationSuccess = (
+    _agentAddr: string,
+    selfAgentId?: number
+  ) => {
     setIsVerified(true);
-    setAgentAddress(agentAddr);
-    setStep("fund");
+    if (selfAgentId != null) {
+      setAgentId(selfAgentId);
+    }
+    setStep("delegate");
+  };
+
+  const handleDelegate = async () => {
+    if (!address || agentId == null || !walletId || !agentAddress) return;
+    setDelegating(true);
+    try {
+      // 1. Backend signs EIP-712 with Privy agent wallet (the EOA that IS the smart account)
+      const res = await fetch("/api/agent-id/delegate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId,
+          walletId,
+          walletAddress: agentAddress,
+          ownerAddress: address,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      // 2. Human submits setAgentWallet tx on the Self registry
+      await writeContractAsync({
+        address: REGISTRY_ADDRESS,
+        abi: REGISTRY_ABI,
+        functionName: "setAgentWallet",
+        args: [
+          BigInt(agentId),
+          data.newWallet as `0x${string}`,
+          BigInt(data.deadline),
+          data.signature as `0x${string}`,
+        ],
+      });
+
+      setIsDelegated(true);
+      setStep("fund");
+    } catch (err) {
+      console.error("Delegation failed:", err);
+    } finally {
+      setDelegating(false);
+    }
   };
 
   const handleFund = async () => {
@@ -111,7 +184,11 @@ export function DeployAgent() {
           <div>
             <span className={labelClass}>Identity</span>
             <p className="mt-1 font-mono text-sm text-ink">
-              {isVerified ? "Self (8004 SBT)" : "Not verified"}
+              {isDelegated
+                ? "Self (8004 SBT) — Delegated"
+                : isVerified
+                  ? "Self (8004 SBT)"
+                  : "Not verified"}
             </p>
           </div>
           <div>
@@ -210,7 +287,52 @@ export function DeployAgent() {
         </div>
       )}
 
-      {/* Step 3: Fund Agent */}
+      {/* Step 3: Delegate Identity to Agent Wallet */}
+      {step === "delegate" && (
+        <div className="mx-auto max-w-md">
+          <h3 className="font-serif text-xl text-ink">
+            Delegate identity to agent
+          </h3>
+          <p className="mt-2 text-sm text-ink-light">
+            Link your Self-verified identity (Agent ID #{agentId}) to your
+            agent&apos;s wallet. This calls{" "}
+            <span className="font-mono">setAgentWallet</span> on the Self
+            registry so the agent can prove it&apos;s human-backed on-chain.
+          </p>
+
+          <div className="mt-6 space-y-4">
+            <div className="space-y-3 rounded border border-cream-dark bg-cream px-4 py-3">
+              <div className="flex justify-between font-mono text-sm">
+                <span className="text-ink-lighter">Self Agent ID</span>
+                <span className="text-ink">#{agentId}</span>
+              </div>
+              <div className="flex justify-between font-mono text-sm">
+                <span className="text-ink-lighter">Agent Wallet (7702)</span>
+                <span className="text-ink">
+                  {agentAddress
+                    ? `${agentAddress.slice(0, 6)}...${agentAddress.slice(-4)}`
+                    : "—"}
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleDelegate}
+              disabled={delegating || agentId == null}
+              className="w-full bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80 disabled:opacity-30"
+            >
+              {delegating ? "Delegating..." : "Delegate Identity"}
+            </button>
+          </div>
+
+          <p className="mt-4 text-xs text-ink-lighter">
+            This transaction is sent from your human wallet and requires one
+            on-chain confirmation.
+          </p>
+        </div>
+      )}
+
+      {/* Step 4: Fund Agent */}
       {step === "fund" && agentAddress && (
         <div className="mx-auto max-w-md">
           <h3 className="font-serif text-xl text-ink">Fund your agent</h3>
@@ -262,7 +384,7 @@ export function DeployAgent() {
         </div>
       )}
 
-      {/* Step 4: Monitor */}
+      {/* Step 5: Monitor */}
       {step === "monitor" && agentAddress && (
         <LendingDashboard
           agentAddress={agentAddress}

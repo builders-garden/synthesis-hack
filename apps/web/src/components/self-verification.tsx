@@ -5,7 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 
 interface SelfVerificationProps {
   walletAddress: string;
-  onSuccess: (agentAddress: string) => void;
+  onSuccess: (agentAddress: string, agentId?: number) => void;
 }
 
 interface RegistrationResponse {
@@ -77,7 +77,7 @@ export function SelfVerification({
         if (data.stage === "completed") {
           setStatus("verified");
           if (pollingRef.current) clearInterval(pollingRef.current);
-          onSuccess(data.agentAddress || session.agentAddress);
+          onSuccess(data.agentAddress || session.agentAddress, data.agentId);
         } else if (data.stage === "failed") {
           setStatus("error");
           setError(data.error || "Registration failed");

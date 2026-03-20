@@ -1,57 +1,70 @@
-import { createPublicClient, http, type Hex, encodeFunctionData } from "viem";
-import { entryPoint07Address } from "viem/account-abstraction";
+import { createPublicClient, createClient, http, type Hex, encodeFunctionData } from "viem";
+import { entryPoint08Address } from "viem/account-abstraction";
 import { celo } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { createPimlicoClient } from "permissionless/clients/pimlico";
-import { toSafeSmartAccount } from "permissionless/accounts";
+import { to7702SimpleSmartAccount } from "permissionless/accounts";
 import { createSmartAccountClient } from "permissionless";
 
-const PIMLICO_API_KEY = process.env.PIMLICO_API_KEY;
 const CELO_RPC_URL = process.env.CELO_RPC_URL || "https://forno.celo.org";
-
-function getPimlicoUrl() {
-  if (!PIMLICO_API_KEY) {
-    throw new Error("PIMLICO_API_KEY is not set");
-  }
-  return `https://api.pimlico.io/v2/celo/rpc?apikey=${PIMLICO_API_KEY}`;
-}
+const CANDIDE_API_KEY = process.env.CANDIDE_API_KEY || "";
+const CANDIDE_BUNDLER_URL = CANDIDE_API_KEY
+  ? `https://api.candide.dev/api/v3/42220/${CANDIDE_API_KEY}`
+  : "https://api.candide.dev/public/v3/42220";
+const CANDIDE_PAYMASTER_URL = process.env.CANDIDE_PAYMASTER_URL
+  || (CANDIDE_API_KEY ? `https://api.candide.dev/api/v3/42220/${CANDIDE_API_KEY}` : "https://api.candide.dev/public/v3/42220");
+const SPONSORSHIP_POLICY_ID = process.env.CANDIDE_SPONSORSHIP_POLICY_ID || "";
 
 export async function createGaslessClient(privateKey: Hex) {
-  const pimlicoUrl = getPimlicoUrl();
-
   const publicClient = createPublicClient({
     chain: celo,
     transport: http(CELO_RPC_URL),
   });
 
-  const pimlicoClient = createPimlicoClient({
-    transport: http(pimlicoUrl),
+  const owner = privateKeyToAccount(privateKey);
+
+  // EIP-7702: EOA address IS the smart account address
+  const account = await to7702SimpleSmartAccount({
+    client: publicClient,
+    owner,
     entryPoint: {
-      address: entryPoint07Address,
-      version: "0.7",
+      address: entryPoint08Address,
+      version: "0.8",
     },
   });
 
-  const owner = privateKeyToAccount(privateKey);
-
-  const account = await toSafeSmartAccount({
-    client: publicClient,
-    owners: [owner],
-    entryPoint: {
-      address: entryPoint07Address,
-      version: "0.7",
-    },
-    version: "1.4.1",
+  const paymasterClient = createClient({
+    chain: celo,
+    transport: http(CANDIDE_PAYMASTER_URL),
   });
 
   const smartAccountClient = createSmartAccountClient({
     account,
     chain: celo,
-    bundlerTransport: http(pimlicoUrl),
-    paymaster: pimlicoClient,
+    bundlerTransport: http(CANDIDE_BUNDLER_URL),
+    paymaster: {
+      getPaymasterData: async (userOp) => {
+        const res = await paymasterClient.request({
+          method: "pm_sponsorUserOperation" as any,
+          params: [userOp, entryPoint08Address, { sponsorshipPolicyId: SPONSORSHIP_POLICY_ID }] as any,
+        });
+        return res as any;
+      },
+      getPaymasterStubData: async (userOp) => {
+        const res = await paymasterClient.request({
+          method: "pm_sponsorUserOperation" as any,
+          params: [userOp, entryPoint08Address, { sponsorshipPolicyId: SPONSORSHIP_POLICY_ID }] as any,
+        });
+        return res as any;
+      },
+    },
     userOperation: {
       estimateFeesPerGas: async () => {
-        return (await pimlicoClient.getUserOperationGasPrice()).fast;
+        const block = await publicClient.getBlock();
+        const baseFee = block.baseFeePerGas ?? BigInt(5000000000);
+        return {
+          maxFeePerGas: baseFee * BigInt(2),
+          maxPriorityFeePerGas: baseFee / BigInt(5),
+        };
       },
     },
   });
@@ -59,7 +72,7 @@ export async function createGaslessClient(privateKey: Hex) {
   return {
     client: smartAccountClient,
     account,
-    address: account.address,
+    address: account.address, // Same as owner.address (7702)
   };
 }
 

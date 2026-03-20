@@ -1,13 +1,19 @@
-import { createPublicClient, http } from "viem";
-import { entryPoint07Address } from "viem/account-abstraction";
+import { createPublicClient, createClient, http } from "viem";
+import { entryPoint08Address } from "viem/account-abstraction";
 import { celo } from "viem/chains";
 import { PrivyClient } from "@privy-io/node";
 import { createViemAccount } from "@privy-io/node/viem";
-import { createPimlicoClient } from "permissionless/clients/pimlico";
-import { toSafeSmartAccount } from "permissionless/accounts";
+import { to7702SimpleSmartAccount } from "permissionless/accounts";
 import { createSmartAccountClient } from "permissionless";
 
 const CELO_RPC_URL = process.env.CELO_RPC_URL || "https://forno.celo.org";
+const CANDIDE_API_KEY = process.env.CANDIDE_API_KEY || "";
+const CANDIDE_BUNDLER_URL = CANDIDE_API_KEY
+  ? `https://api.candide.dev/api/v3/42220/${CANDIDE_API_KEY}`
+  : "https://api.candide.dev/public/v3/42220";
+const CANDIDE_PAYMASTER_URL = process.env.CANDIDE_PAYMASTER_URL
+  || (CANDIDE_API_KEY ? `https://api.candide.dev/api/v3/42220/${CANDIDE_API_KEY}` : "https://api.candide.dev/public/v3/42220");
+const SPONSORSHIP_POLICY_ID = process.env.CANDIDE_SPONSORSHIP_POLICY_ID || "";
 
 function log(level: "info" | "warn" | "error", msg: string, meta?: Record<string, unknown>) {
   const entry = {
@@ -24,14 +30,6 @@ function log(level: "info" | "warn" | "error", msg: string, meta?: Record<string
   }
 }
 
-function getPimlicoUrl() {
-  const apiKey = process.env.PIMLICO_API_KEY;
-  if (!apiKey) {
-    throw new Error("PIMLICO_API_KEY is not set");
-  }
-  return `https://api.pimlico.io/v2/celo/rpc?apikey=${apiKey}`;
-}
-
 function getPrivyClient() {
   const appId = process.env.PRIVY_APP_ID;
   const appSecret = process.env.PRIVY_APP_SECRET;
@@ -42,14 +40,13 @@ function getPrivyClient() {
 }
 
 /**
- * Create a gasless smart account client using a Privy server wallet.
- * The Privy wallet signs via Privy's API (no private key needed locally).
- * Pimlico sponsors all gas fees on Celo.
+ * Create a gasless EIP-7702 smart account client using a Privy server wallet.
+ * The Privy EOA gets 7702 delegation — same address acts as both EOA and smart account.
+ * Candide bundles and sponsors gas on Celo via EntryPoint v0.8.
  */
 export async function createGaslessClient(walletId: string, walletAddress: string) {
-  log("info", "Creating gasless smart account client", { walletId, walletAddress });
+  log("info", "Creating 7702 gasless smart account client", { walletId, walletAddress });
 
-  const pimlicoUrl = getPimlicoUrl();
   let privy: PrivyClient;
   try {
     privy = getPrivyClient();
@@ -61,14 +58,6 @@ export async function createGaslessClient(walletId: string, walletAddress: strin
   const publicClient = createPublicClient({
     chain: celo,
     transport: http(CELO_RPC_URL),
-  });
-
-  const pimlicoClient = createPimlicoClient({
-    transport: http(pimlicoUrl),
-    entryPoint: {
-      address: entryPoint07Address,
-      version: "0.7",
-    },
   });
 
   // Create a viem-compatible account backed by Privy's signing API
@@ -89,20 +78,20 @@ export async function createGaslessClient(walletId: string, walletAddress: strin
     throw err;
   }
 
+  // EIP-7702: EOA address IS the smart account address
   let account;
   try {
-    account = await toSafeSmartAccount({
+    account = await to7702SimpleSmartAccount({
       client: publicClient,
-      owners: [owner],
+      owner,
       entryPoint: {
-        address: entryPoint07Address,
-        version: "0.7",
+        address: entryPoint08Address,
+        version: "0.8",
       },
-      version: "1.4.1",
     });
-    log("info", "Safe smart account initialized", { smartAccountAddress: account.address });
+    log("info", "7702 smart account initialized", { address: account.address });
   } catch (err: any) {
-    log("error", "Failed to initialize Safe smart account", {
+    log("error", "Failed to initialize 7702 smart account", {
       walletId,
       error: err.message,
       stack: err.stack,
@@ -110,38 +99,55 @@ export async function createGaslessClient(walletId: string, walletAddress: strin
     throw err;
   }
 
+  const paymasterClient = createClient({
+    chain: celo,
+    transport: http(CANDIDE_PAYMASTER_URL),
+  });
+
   const smartAccountClient = createSmartAccountClient({
     account,
     chain: celo,
-    bundlerTransport: http(pimlicoUrl),
-    paymaster: pimlicoClient,
+    bundlerTransport: http(CANDIDE_BUNDLER_URL),
+    paymaster: {
+      getPaymasterData: async (userOp) => {
+        const res = await paymasterClient.request({
+          method: "pm_sponsorUserOperation" as any,
+          params: [userOp, entryPoint08Address, { sponsorshipPolicyId: SPONSORSHIP_POLICY_ID }] as any,
+        });
+        return res as any;
+      },
+      getPaymasterStubData: async (userOp) => {
+        const res = await paymasterClient.request({
+          method: "pm_sponsorUserOperation" as any,
+          params: [userOp, entryPoint08Address, { sponsorshipPolicyId: SPONSORSHIP_POLICY_ID }] as any,
+        });
+        return res as any;
+      },
+    },
     userOperation: {
       estimateFeesPerGas: async () => {
-        try {
-          return (await pimlicoClient.getUserOperationGasPrice()).fast;
-        } catch (err: any) {
-          log("error", "Failed to estimate gas price from Pimlico", {
-            error: err.message,
-            stack: err.stack,
-          });
-          throw err;
-        }
+        const block = await publicClient.getBlock();
+        const baseFee = block.baseFeePerGas ?? BigInt(5000000000);
+        return {
+          maxFeePerGas: baseFee * BigInt(2),
+          maxPriorityFeePerGas: baseFee / BigInt(5),
+        };
       },
     },
   });
 
-  log("info", "Gasless smart account client ready", { smartAccountAddress: account.address });
+  log("info", "7702 gasless smart account client ready", { address: account.address });
 
   return {
     client: smartAccountClient,
     account,
-    address: account.address,
+    address: account.address, // Same as walletAddress (7702)
   };
 }
 
 /**
- * Send a gasless contract call via the Pimlico paymaster on Celo.
- * The agent never pays gas — Pimlico sponsors the UserOperation.
+ * Send a gasless contract call via Candide paymaster on Celo.
+ * The agent never pays gas — Candide sponsors the UserOperation.
  * Signing is handled by Privy's server wallet API.
  */
 export async function sendGaslessContractCall(
@@ -186,7 +192,6 @@ export async function sendGaslessContractCall(
       value: value?.toString(),
       error: err.message,
       stack: err.stack,
-      // Include Pimlico/bundler error details if present
       ...(err.details && { details: err.details }),
       ...(err.cause && { cause: String(err.cause) }),
     });
@@ -195,7 +200,7 @@ export async function sendGaslessContractCall(
 }
 
 /**
- * Send a gasless native CELO transfer via the Pimlico paymaster.
+ * Send a gasless native CELO transfer via the Candide paymaster.
  */
 export async function sendGaslessTransfer(
   walletId: string,

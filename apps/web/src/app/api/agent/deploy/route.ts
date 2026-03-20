@@ -5,6 +5,7 @@ import {
   createVolume,
   createDomain,
 } from "@/lib/railway";
+import { createAgentWallet } from "@/lib/privy-server";
 
 interface DeployRequest {
   agentName: string;
@@ -31,6 +32,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 0. Create Privy wallet — with EIP-7702 the EOA address IS the smart account
+    const { walletId, address: walletAddress } = await createAgentWallet();
+
     // 1. Create service from GitHub repo (name = agent name for uniqueness)
     const repo = "builders-garden/synthesis-hack";
     const { serviceId, environmentId } = await createService(
@@ -47,9 +51,11 @@ export async function POST(req: NextRequest) {
       AGENT_NAME: body.agentName,
       SETUP_PASSWORD: setupPassword,
       CELO_RPC_URL: process.env.CELO_RPC_URL || "https://forno.celo.org",
+      AGENT_WALLET_ID: walletId,
+      AGENT_WALLET_ADDRESS: walletAddress,
     };
 
-    // Privy: pass through from server env for agent wallet creation
+    // Privy: pass through from server env for agent wallet signing
     const privyAppId = process.env.PRIVY_APP_ID;
     const privyAppSecret = process.env.PRIVY_APP_SECRET;
     if (privyAppId) {
@@ -59,10 +65,14 @@ export async function POST(req: NextRequest) {
       envVars.PRIVY_APP_SECRET = privyAppSecret;
     }
 
-    // Pimlico: pass through for gasless transactions
-    const pimlicoApiKey = process.env.PIMLICO_API_KEY;
-    if (pimlicoApiKey) {
-      envVars.PIMLICO_API_KEY = pimlicoApiKey;
+    // Candide: pass through for gasless EIP-7702 transactions
+    const candideApiKey = process.env.CANDIDE_API_KEY;
+    if (candideApiKey) {
+      envVars.CANDIDE_API_KEY = candideApiKey;
+    }
+    const candidePolicyId = process.env.CANDIDE_SPONSORSHIP_POLICY_ID;
+    if (candidePolicyId) {
+      envVars.CANDIDE_SPONSORSHIP_POLICY_ID = candidePolicyId;
     }
 
     // Lending contract address
@@ -97,6 +107,8 @@ export async function POST(req: NextRequest) {
       environmentId,
       domain: `https://${domain}`,
       setupPassword,
+      walletId,
+      walletAddress,
       status: "deploying",
     });
   } catch (err) {
