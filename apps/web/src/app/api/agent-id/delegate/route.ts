@@ -5,7 +5,7 @@ import { PrivyClient } from "@privy-io/node";
 import { createViemAccount } from "@privy-io/node/viem";
 
 // Self Agent Registry on Celo mainnet
-const REGISTRY_ADDRESS = "0x62E37d0f6c5f67784b8828B3dF68BCDbB2e55095" as const;
+const REGISTRY_ADDRESS = "0xaC3DF9ABf80d0F5c020C06B04Cced27763355944" as const;
 const CELO_RPC_URL = process.env.CELO_RPC_URL || "https://forno.celo.org";
 
 const REGISTRY_ABI = [

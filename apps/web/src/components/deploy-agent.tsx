@@ -1,14 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { useAccount, useSendTransaction, useWriteContract } from "wagmi";
-import { parseEther } from "viem";
+import { useState, useMemo } from "react";
+import { useAccount, useWriteContract } from "wagmi";
 import { SelfVerification } from "@/components/self-verification";
 import { LendingDashboard } from "@/components/lending-dashboard";
+import dynamic from "next/dynamic";
+import type { WidgetConfig } from "@lifi/widget";
+
+const LiFiWidget = dynamic(
+  () => import("@lifi/widget").then((m) => m.LiFiWidget),
+  { ssr: false }
+);
+
+// USDC on Celo
+const CELO_USDC = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C";
 
 // Self Agent Registry on Celo mainnet
 const REGISTRY_ADDRESS =
-  "0x62E37d0f6c5f67784b8828B3dF68BCDbB2e55095" as const;
+  "0xaC3DF9ABf80d0F5c020C06B04Cced27763355944" as const;
 
 const REGISTRY_ABI = [
   {
@@ -29,7 +38,6 @@ const STEPS = [
   { id: "deploy", label: "Deploy Agent" },
   { id: "verify", label: "Verify Identity" },
   { id: "delegate", label: "Delegate" },
-  { id: "fund", label: "Fund Agent" },
   { id: "monitor", label: "Monitor" },
 ] as const;
 
@@ -42,12 +50,10 @@ const inputClass =
 
 export function DeployAgent() {
   const { address } = useAccount();
-  const { sendTransactionAsync } = useSendTransaction();
   const { writeContractAsync } = useWriteContract();
   const [step, setStep] = useState<Step>("deploy");
   const [isVerified, setIsVerified] = useState(false);
   const [isDelegated, setIsDelegated] = useState(false);
-  // With EIP-7702, walletAddress (Privy EOA) IS the smart account address
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
   const [walletId, setWalletId] = useState<string | null>(null);
   const [agentId, setAgentId] = useState<number | null>(null);
@@ -56,13 +62,34 @@ export function DeployAgent() {
   const [deploying, setDeploying] = useState(false);
   const [delegating, setDelegating] = useState(false);
   const [agentName, setAgentName] = useState("");
-  const [fundAmount, setFundAmount] = useState("");
-  const [funding, setFunding] = useState(false);
-  const [funded, setFunded] = useState(false);
+  const [deployError, setDeployError] = useState<string | null>(null);
+  const [showFundWidget, setShowFundWidget] = useState(false);
+
+  // LI.FI widget config — fixed destination: USDC on Celo to agent wallet
+  const lifiConfig: WidgetConfig = useMemo(
+    () => ({
+      integrator: "openclaw-lending",
+      toChain: 42220,
+      toToken: CELO_USDC,
+      toAddress: {
+        address: agentAddress || "",
+        chainType: "EVM" as any,
+      },
+      hiddenUI: ["toAddress", "toToken", "toChain"],
+      theme: {
+        container: {
+          border: "1px solid rgb(220, 215, 206)",
+          borderRadius: "0px",
+        },
+      },
+    }),
+    [agentAddress]
+  );
 
   const handleDeploy = async () => {
     if (!agentName.trim()) return;
     setDeploying(true);
+    setDeployError(null);
     try {
       const res = await fetch("/api/agent/deploy", {
         method: "POST",
@@ -70,16 +97,25 @@ export function DeployAgent() {
         body: JSON.stringify({ agentName: agentName.trim() }),
       });
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (data.error) {
+        if (data.error.includes("already exists")) {
+          setDeployError(
+            `Name "${agentName.trim()}" is taken — try a different name.`
+          );
+        } else {
+          setDeployError(data.error);
+        }
+        return;
+      }
 
       setWalletId(data.walletId);
       setServiceId(data.serviceId);
       setEnvironmentId(data.environmentId);
-      // EIP-7702: EOA address = smart account address
       setAgentAddress(data.walletAddress);
       setStep("verify");
     } catch (err) {
-      console.error("Deploy failed:", err);
+      const msg = err instanceof Error ? err.message : "Deploy failed";
+      setDeployError(msg);
     } finally {
       setDeploying(false);
     }
@@ -100,7 +136,6 @@ export function DeployAgent() {
     if (!address || agentId == null || !walletId || !agentAddress) return;
     setDelegating(true);
     try {
-      // 1. Backend signs EIP-712 with Privy agent wallet (the EOA that IS the smart account)
       const res = await fetch("/api/agent-id/delegate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -114,7 +149,6 @@ export function DeployAgent() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
-      // 2. Human submits setAgentWallet tx on the Self registry
       await writeContractAsync({
         address: REGISTRY_ADDRESS,
         abi: REGISTRY_ABI,
@@ -127,7 +161,6 @@ export function DeployAgent() {
         ],
       });
 
-      // Push SELF_AGENT_ID to the agent's Railway env vars
       if (serviceId && environmentId) {
         await fetch("/api/agent/set-env", {
           method: "POST",
@@ -141,31 +174,11 @@ export function DeployAgent() {
       }
 
       setIsDelegated(true);
-      setStep("fund");
+      setStep("monitor");
     } catch (err) {
       console.error("Delegation failed:", err);
     } finally {
       setDelegating(false);
-    }
-  };
-
-  const handleFund = async () => {
-    if (!agentAddress || !fundAmount) return;
-    const amount = parseFloat(fundAmount);
-    if (!amount || amount <= 0) return;
-
-    setFunding(true);
-    try {
-      await sendTransactionAsync({
-        to: agentAddress as `0x${string}`,
-        value: parseEther(fundAmount),
-      });
-      setFunded(true);
-      setStep("monitor");
-    } catch (err) {
-      console.error("Funding failed:", err);
-    } finally {
-      setFunding(false);
     }
   };
 
@@ -206,12 +219,6 @@ export function DeployAgent() {
                 : isVerified
                   ? "Self (8004 SBT)"
                   : "Not verified"}
-            </p>
-          </div>
-          <div>
-            <span className={labelClass}>Status</span>
-            <p className="mt-1 font-mono text-sm text-ink">
-              {funded ? "Funded" : "Unfunded"}
             </p>
           </div>
         </div>
@@ -276,6 +283,12 @@ export function DeployAgent() {
             >
               {deploying ? "Deploying..." : "Deploy Agent"}
             </button>
+
+            {deployError && (
+              <div className="mt-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {deployError}
+              </div>
+            )}
           </div>
 
           <p className="mt-4 text-xs text-ink-lighter">
@@ -292,10 +305,9 @@ export function DeployAgent() {
             onSuccess={handleVerificationSuccess}
           />
 
-          {/* Skip verification */}
           <div className="mt-8 border-t border-cream-dark pt-6">
             <button
-              onClick={() => setStep("fund")}
+              onClick={() => setStep("monitor")}
               className="font-mono text-xs text-ink-lighter hover:text-ink"
             >
               Skip verification (agent cannot borrow without 8004 SBT)
@@ -349,77 +361,41 @@ export function DeployAgent() {
         </div>
       )}
 
-      {/* Step 4: Fund Agent */}
-      {step === "fund" && agentAddress && (
-        <div className="mx-auto max-w-md">
-          <h3 className="font-serif text-xl text-ink">Fund your agent</h3>
-          <p className="mt-2 text-sm text-ink-light">
-            Send CELO to your agent wallet. The agent will automatically swap
-            CELO to USDC via Uniswap, retaining a small CELO reserve ($0.10)
-            for gas fees.
-          </p>
-
-          <div className="mt-6 space-y-4">
-            <div>
-              <label className={labelClass}>Amount</label>
-              <div className="flex items-baseline gap-2">
-                <input
-                  type="number"
-                  value={fundAmount}
-                  onChange={(e) => setFundAmount(e.target.value)}
-                  placeholder="0.00"
-                  className={inputClass}
-                />
-                <span className="font-mono text-xs text-ink-lighter">CELO</span>
-              </div>
-            </div>
-
-            <div className="rounded border border-cream-dark bg-cream px-4 py-3">
-              <p className="font-mono text-xs text-ink-lighter">
-                Agent wallet
-              </p>
-              <p className="mt-1 font-mono text-sm text-ink break-all">
-                {agentAddress}
-              </p>
-            </div>
-
-            <button
-              onClick={handleFund}
-              disabled={
-                funding || !fundAmount || parseFloat(fundAmount) <= 0
-              }
-              className="w-full bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80 disabled:opacity-30"
-            >
-              {funding ? "Sending CELO..." : "Send CELO"}
-            </button>
-          </div>
-
-          <p className="mt-4 text-xs text-ink-lighter">
-            The agent will bootstrap its liquidity by swapping CELO to USDC
-            via Uniswap on Celo.
-          </p>
-        </div>
-      )}
-
-      {/* Step 5: Monitor */}
+      {/* Step 4: Monitor + Fund */}
       {step === "monitor" && agentAddress && (
-        <LendingDashboard
-          agentAddress={agentAddress}
-          humanAddress={address}
-          isVerified={isVerified}
-        />
-      )}
+        <>
+          <LendingDashboard
+            agentAddress={agentAddress}
+            humanAddress={address}
+            isVerified={isVerified}
+          />
 
-      {/* Navigation */}
-      {step === "monitor" && (
-        <div className="flex gap-4">
-          <button
-            onClick={() => setStep("fund")}
-            className="border border-cream-dark px-8 py-4 font-mono text-sm uppercase tracking-wider text-ink-light transition-colors hover:border-ink hover:text-ink"
-          >
-            Back to Fund
-          </button>
-        </div>
+          {/* Fund agent section */}
+          <div className="border-t border-cream-dark pt-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-serif text-xl text-ink">
+                  Fund your agent
+                </h3>
+                <p className="mt-1 text-sm text-ink-light">
+                  Send USDC from any chain to your agent wallet on Celo.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowFundWidget(!showFundWidget)}
+                className="border border-cream-dark px-6 py-3 font-mono text-sm uppercase tracking-wider text-ink transition-colors hover:border-ink"
+              >
+                {showFundWidget ? "Hide" : "Fund Agent"}
+              </button>
+            </div>
+
+            {showFundWidget && (
+              <div className="mt-6">
+                <LiFiWidget {...lifiConfig} />
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
