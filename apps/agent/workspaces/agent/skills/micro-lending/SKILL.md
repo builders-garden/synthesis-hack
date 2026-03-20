@@ -1,13 +1,13 @@
 ---
 name: micro-lending
 description: >
-  Interact with the AgentMicrolending contract on Celo using a permissionless
-  smart account (ERC-4337). All loans are denominated in USDC (6 decimals).
+  Interact with the AgentMicrolending contract on Celo using EIP-7702 gasless
+  smart accounts. All loans are denominated in USDC (6 decimals).
   Create loan requests, discover and fund open loans, repay loans, check loan
-  status, and mark defaults — all gasless via Pimlico. Use this skill whenever
+  status, and mark defaults — all gasless via Candide. Use this skill whenever
   the user wants to borrow, lend, repay, discover loans, or check loan status
   on the microlending protocol.
-version: 1.0.0
+version: 2.0.0
 requires:
   env:
     [
@@ -16,7 +16,8 @@ requires:
       "AGENT_WALLET_ID",
       "AGENT_WALLET_ADDRESS",
       "CELO_RPC_URL",
-      "PIMLICO_API_KEY",
+      "CANDIDE_API_KEY",
+      "CANDIDE_SPONSORSHIP_POLICY_ID",
     ]
 ---
 
@@ -27,80 +28,69 @@ non-collateralized microlending between autonomous agents. All loans are
 denominated in **USDC** (`0xcebA9300f2b948710d2653dD7B07f33A8B32118C`) on
 Celo — a 6-decimal ERC-20 stablecoin.
 
-Every on-chain transaction is submitted as an ERC-4337 UserOperation via a
-permissionless Safe smart account with Pimlico as the paymaster — the agent
-never pays gas directly. Signing is handled by a Privy server wallet (no
+Every on-chain transaction is submitted as an ERC-4337 UserOperation via
+**EIP-7702** with **Candide** as the bundler and paymaster — the agent never
+pays gas directly. Signing is handled by a **Privy server wallet** (no
 private key stored locally).
 
-## Smart Account Setup
+With EIP-7702, the **Privy EOA address IS the smart account address** — no
+separate contract deployment is needed (unlike the old Safe approach).
 
-Before calling any contract function, create a gasless smart account client.
-This uses a Privy managed server wallet as the signer, wraps it into a Safe
-smart account, and routes all transactions through the Pimlico
-bundler/paymaster on Celo.
+## How Transactions Work (EIP-7702 + Candide)
+
+The agent sends gasless transactions through this flow:
+
+1. **Privy server wallet** (EOA) signs an EIP-7702 authorization delegating
+   its code to a SimpleAccount implementation on Celo
+2. The call is wrapped in `SimpleAccount.execute(to, value, data)` and packed
+   into an ERC-4337 UserOperation
+3. **Candide** sponsors the gas (via `pm_sponsorUserOperation`) and fills in
+   paymaster fields
+4. The UserOp hash is signed with raw secp256k1 via Privy (no EIP-191 prefix)
+5. The UserOp is submitted to Candide's bundler (`eth_sendUserOperation`)
+6. Candide bundles it and submits to the EntryPoint v0.8 on Celo — gasless
+
+The agent's on-chain address is `process.env.AGENT_WALLET_ADDRESS` (the
+Privy EOA itself).
+
+## Sending Transactions
+
+The helper module at `src/smart-account.ts` exposes two functions for all
+write operations. Use `publicClient` for reads.
 
 ```typescript
-import { createPublicClient, http } from "viem";
+import { sendGaslessContractCall } from "../smart-account";
+import { createPublicClient, http, encodeFunctionData } from "viem";
 import { celo } from "viem/chains";
-import { entryPoint07Address } from "viem/account-abstraction";
-import { PrivyClient } from "@privy-io/node";
-import { createViemAccount } from "@privy-io/node/viem";
-import { createPimlicoClient } from "permissionless/clients/pimlico";
-import { toSafeSmartAccount } from "permissionless/accounts";
-import { createSmartAccountClient } from "permissionless";
 
-const CELO_RPC_URL = process.env.CELO_RPC_URL || "https://forno.celo.org";
-const PIMLICO_URL = `https://api.pimlico.io/v2/celo/rpc?apikey=${process.env.PIMLICO_API_KEY}`;
+const WALLET_ID = process.env.AGENT_WALLET_ID!;
+const WALLET_ADDR = process.env.AGENT_WALLET_ADDRESS!;
 
+// For read-only calls (free, no gas)
 const publicClient = createPublicClient({
   chain: celo,
-  transport: http(CELO_RPC_URL),
+  transport: http(process.env.CELO_RPC_URL || "https://forno.celo.org"),
 });
 
-const pimlicoClient = createPimlicoClient({
-  transport: http(PIMLICO_URL),
-  entryPoint: {
-    address: entryPoint07Address,
-    version: "0.7",
-  },
+// For write calls: encode calldata, then use sendGaslessContractCall
+const data = encodeFunctionData({
+  abi: SOME_ABI,
+  functionName: "someFunction",
+  args: [arg1, arg2],
 });
 
-// Create a Privy client and derive a viem-compatible signer
-const privy = new PrivyClient({
-  appId: process.env.PRIVY_APP_ID!,
-  appSecret: process.env.PRIVY_APP_SECRET!,
-});
-
-const owner = await createViemAccount(privy, {
-  walletId: process.env.AGENT_WALLET_ID!,
-  address: process.env.AGENT_WALLET_ADDRESS! as `0x${string}`,
-});
-
-const safeAccount = await toSafeSmartAccount({
-  client: publicClient,
-  owners: [owner],
-  entryPoint: {
-    address: entryPoint07Address,
-    version: "0.7",
-  },
-  version: "1.4.1",
-});
-
-const smartAccountClient = createSmartAccountClient({
-  account: safeAccount,
-  chain: celo,
-  bundlerTransport: http(PIMLICO_URL),
-  paymaster: pimlicoClient,
-  userOperation: {
-    estimateFeesPerGas: async () =>
-      (await pimlicoClient.getUserOperationGasPrice()).fast,
-  },
-});
+const userOpHash = await sendGaslessContractCall(
+  WALLET_ID,
+  WALLET_ADDR,
+  contractAddress,  // target contract
+  data,             // encoded calldata
+);
+// userOpHash is returned immediately; the bundler executes it async
 ```
 
-The `smartAccountClient` is used for all write operations. The `publicClient`
-is used for all read-only view calls. The smart account address
-(`safeAccount.address`) is the agent's on-chain identity.
+`sendGaslessContractCall` handles the entire 7702 flow internally:
+authorization signing, UserOp construction, Candide sponsorship, signing,
+and submission. You just provide the target address and encoded calldata.
 
 ## Token Constants
 
@@ -132,6 +122,7 @@ const LENDING_ABI = [
       { name: "repayAmount", type: "uint256" },
       { name: "deadline", type: "uint256" },
       { name: "lender", type: "address" },
+      { name: "agentId", type: "uint256" },
     ],
     outputs: [{ name: "loanId", type: "uint256" }],
   },
@@ -323,6 +314,10 @@ A single max-approval is sufficient for all future operations:
 
 ```typescript
 import { encodeFunctionData } from "viem";
+import { sendGaslessContractCall } from "../smart-account";
+
+const WALLET_ID = process.env.AGENT_WALLET_ID!;
+const WALLET_ADDR = process.env.AGENT_WALLET_ADDRESS!;
 
 // Approve the lending contract to spend USDC (one-time or per-operation)
 const approveData = encodeFunctionData({
@@ -336,10 +331,12 @@ const approveData = encodeFunctionData({
   ],
 });
 
-const txHash = await smartAccountClient.sendTransaction({
-  to: USDC_ADDRESS,
-  data: approveData,
-});
+const userOpHash = await sendGaslessContractCall(
+  WALLET_ID,
+  WALLET_ADDR,
+  USDC_ADDRESS,
+  approveData,
+);
 ```
 
 You can check the current allowance before approving:
@@ -349,7 +346,7 @@ const allowance = await publicClient.readContract({
   address: USDC_ADDRESS,
   abi: ERC20_ABI,
   functionName: "allowance",
-  args: [safeAccount.address, LENDING_CONTRACT],
+  args: [WALLET_ADDR as `0x${string}`, LENDING_CONTRACT],
 });
 
 // If allowance is sufficient, skip the approve step
@@ -360,14 +357,19 @@ const allowance = await publicClient.readContract({
 ### 1. Create a Loan Request (Borrower)
 
 Publish a request to borrow USDC. Specify the amount, repay amount (must be
-
-> = amount), a deadline (unix timestamp), and optionally a specific lender
-> (`0x0000000000000000000000000000000000000000` for open to anyone).
+>= amount), a deadline (unix timestamp), optionally a specific lender
+(`0x0000000000000000000000000000000000000000` for open to anyone), and the
+agent's Self protocol `agentId` (required for identity verification).
 
 No approval is needed to create a request — it only records data on-chain.
+The contract verifies via Self protocol that `msg.sender` is the registered
+wallet for the given `agentId` and that the agent has a valid human proof.
 
 ```typescript
 import { encodeFunctionData } from "viem";
+import { sendGaslessContractCall } from "../smart-account";
+
+const AGENT_ID = BigInt(process.env.SELF_AGENT_ID || "0");
 
 const data = encodeFunctionData({
   abi: LENDING_ABI,
@@ -377,13 +379,16 @@ const data = encodeFunctionData({
     parseUSDC("11"), // repay 11 USDC (10% interest)
     BigInt(Math.floor(Date.now() / 1000) + 7 * 86400), // deadline: 7 days from now
     "0x0000000000000000000000000000000000000000", // open to any lender
+    AGENT_ID, // Self protocol agent ID (linked to this wallet by a human)
   ],
 });
 
-const txHash = await smartAccountClient.sendTransaction({
-  to: LENDING_CONTRACT,
+const userOpHash = await sendGaslessContractCall(
+  WALLET_ID,
+  WALLET_ADDR,
+  LENDING_CONTRACT,
   data,
-});
+);
 ```
 
 ### 2. Cancel a Loan Request (Borrower)
@@ -397,10 +402,12 @@ const data = encodeFunctionData({
   args: [loanId],
 });
 
-const txHash = await smartAccountClient.sendTransaction({
-  to: LENDING_CONTRACT,
+const userOpHash = await sendGaslessContractCall(
+  WALLET_ID,
+  WALLET_ADDR,
+  LENDING_CONTRACT,
   data,
-});
+);
 ```
 
 ### 3. Fund a Loan (Lender)
@@ -428,7 +435,7 @@ const allowance = await publicClient.readContract({
   address: USDC_ADDRESS,
   abi: ERC20_ABI,
   functionName: "allowance",
-  args: [safeAccount.address, LENDING_CONTRACT],
+  args: [WALLET_ADDR as `0x${string}`, LENDING_CONTRACT],
 });
 
 if (allowance < loan.amount) {
@@ -437,10 +444,12 @@ if (allowance < loan.amount) {
     functionName: "approve",
     args: [LENDING_CONTRACT, loan.amount],
   });
-  await smartAccountClient.sendTransaction({
-    to: USDC_ADDRESS,
-    data: approveData,
-  });
+  await sendGaslessContractCall(
+    WALLET_ID,
+    WALLET_ADDR,
+    USDC_ADDRESS,
+    approveData,
+  );
 }
 
 // 3. Fund the loan (no value — USDC is pulled via transferFrom)
@@ -450,10 +459,12 @@ const data = encodeFunctionData({
   args: [loanId],
 });
 
-const txHash = await smartAccountClient.sendTransaction({
-  to: LENDING_CONTRACT,
+const userOpHash = await sendGaslessContractCall(
+  WALLET_ID,
+  WALLET_ADDR,
+  LENDING_CONTRACT,
   data,
-});
+);
 ```
 
 ### 4. Repay a Loan (Borrower)
@@ -479,7 +490,7 @@ const allowance = await publicClient.readContract({
   address: USDC_ADDRESS,
   abi: ERC20_ABI,
   functionName: "allowance",
-  args: [safeAccount.address, LENDING_CONTRACT],
+  args: [WALLET_ADDR as `0x${string}`, LENDING_CONTRACT],
 });
 
 if (allowance < loan.repayAmount) {
@@ -488,10 +499,12 @@ if (allowance < loan.repayAmount) {
     functionName: "approve",
     args: [LENDING_CONTRACT, loan.repayAmount],
   });
-  await smartAccountClient.sendTransaction({
-    to: USDC_ADDRESS,
-    data: approveData,
-  });
+  await sendGaslessContractCall(
+    WALLET_ID,
+    WALLET_ADDR,
+    USDC_ADDRESS,
+    approveData,
+  );
 }
 
 // Repay (no value — USDC is pulled via transferFrom)
@@ -501,10 +514,12 @@ const data = encodeFunctionData({
   args: [loanId],
 });
 
-const txHash = await smartAccountClient.sendTransaction({
-  to: LENDING_CONTRACT,
+const userOpHash = await sendGaslessContractCall(
+  WALLET_ID,
+  WALLET_ADDR,
+  LENDING_CONTRACT,
   data,
-});
+);
 ```
 
 ### 5. Mark a Loan as Defaulted (Anyone)
@@ -520,10 +535,12 @@ const data = encodeFunctionData({
   args: [loanId],
 });
 
-const txHash = await smartAccountClient.sendTransaction({
-  to: LENDING_CONTRACT,
+const userOpHash = await sendGaslessContractCall(
+  WALLET_ID,
+  WALLET_ADDR,
+  LENDING_CONTRACT,
   data,
-});
+);
 ```
 
 ## Discovery & Status Queries
@@ -538,7 +555,7 @@ const balance = await publicClient.readContract({
   address: USDC_ADDRESS,
   abi: ERC20_ABI,
   functionName: "balanceOf",
-  args: [safeAccount.address],
+  args: [WALLET_ADDR as `0x${string}`],
 });
 // balance is in 6-decimal units: 10_000_000n = 10 USDC
 ```
@@ -629,37 +646,8 @@ const activeLoanIds = await publicClient.readContract({
 });
 ```
 
-## Identity Verification
-
-Before funding a loan, verify the borrower is human-backed by checking that
-their associated human wallet holds the 8004 soulbound NFT from Self.xyz.
-This prevents funding loans from unverified or purely bot-controlled addresses.
-
-```typescript
-const SELF_SBT = "0xaC3DF9ABf80d0F5c020C06B04Cced27763355944";
-
-const balance = await publicClient.readContract({
-  address: SELF_SBT,
-  abi: [
-    {
-      name: "balanceOf",
-      type: "function",
-      stateMutability: "view",
-      inputs: [{ name: "owner", type: "address" }],
-      outputs: [{ name: "", type: "uint256" }],
-    },
-  ],
-  functionName: "balanceOf",
-  args: [humanWalletAddress],
-});
-
-const isHumanBacked = balance > 0n;
-```
-
-Do not fund a loan if `isHumanBacked` is false.
 
 ## Loan Lifecycle
-
 ```
 Borrower                          Lender
    |                                |
@@ -679,19 +667,22 @@ Borrower                          Lender
    |         claimDefaulted() ----->|  (status: Defaulted)
 ```
 
-## Using the Helper Module
-
-The agent codebase provides a helper module at `src/smart-account.ts` that
-wraps the smart account setup. You can use it directly instead of setting up
-the client manually:
+## Quick Reference
 
 ```typescript
-import { createGaslessClient, sendGaslessContractCall } from "../smart-account";
-import { encodeFunctionData } from "viem";
+import { sendGaslessContractCall } from "../smart-account";
+import { createPublicClient, http, encodeFunctionData } from "viem";
+import { celo } from "viem/chains";
 
 const WALLET_ID = process.env.AGENT_WALLET_ID!;
 const WALLET_ADDR = process.env.AGENT_WALLET_ADDRESS!;
 const LENDING_CONTRACT = "0x4B1B2b5F216771d004e5181cb98469C4d2B167Ff" as const;
+const AGENT_ID = BigInt(process.env.SELF_AGENT_ID || "0");
+
+const publicClient = createPublicClient({
+  chain: celo,
+  transport: http(process.env.CELO_RPC_URL || "https://forno.celo.org"),
+});
 
 // Approve USDC first
 const approveData = encodeFunctionData({
@@ -706,13 +697,13 @@ await sendGaslessContractCall(
   approveData,
 );
 
-// Create a loan request (no approval needed)
+// Create a loan request (no approval needed, but agentId required)
 const data = encodeFunctionData({
   abi: LENDING_ABI,
   functionName: "createLoanRequest",
-  args: [parseUSDC("10"), parseUSDC("11"), BigInt(deadline), lenderAddress],
+  args: [parseUSDC("10"), parseUSDC("11"), BigInt(deadline), lenderAddress, AGENT_ID],
 });
-const txHash = await sendGaslessContractCall(
+await sendGaslessContractCall(
   WALLET_ID,
   WALLET_ADDR,
   LENDING_CONTRACT,
@@ -725,24 +716,31 @@ const fundData = encodeFunctionData({
   functionName: "fundLoan",
   args: [loanId],
 });
-const txHash2 = await sendGaslessContractCall(
+await sendGaslessContractCall(
   WALLET_ID,
   WALLET_ADDR,
   LENDING_CONTRACT,
   fundData,
 );
 
-// Read operation: use publicClient directly (no gas needed)
-const { address } = await createGaslessClient(WALLET_ID, WALLET_ADDR);
-// address is the agent's smart account address on-chain
+// Read operations: use publicClient directly (free, no gas)
+const loan = await publicClient.readContract({
+  address: LENDING_CONTRACT,
+  abi: LENDING_ABI,
+  functionName: "getLoan",
+  args: [loanId],
+});
+// WALLET_ADDR is the agent's on-chain address (Privy EOA = smart account via 7702)
 ```
 
 ## Rules
 
 - All amounts are in USDC smallest units (6 decimals). Use `parseUSDC("10")` for 10 USDC.
 - USDC address on Celo: `0xcebA9300f2b948710d2653dD7B07f33A8B32118C`.
+- Self Agent Registry on Celo: `0xaC3DF9ABf80d0F5c020C06B04Cced27763355944`.
 - The `repayAmount` must be >= `amount` (enforced by the contract).
 - The `deadline` must be a future unix timestamp (enforced by the contract).
+- `createLoanRequest` requires a valid `agentId` — the agent must be registered in the Self Agent Registry and have a human proof. Without this, the call reverts with `NotVerifiedAgent`.
 - Before `fundLoan`: the lender must `approve` the lending contract to spend `loan.amount` USDC.
 - Before `repayLoan`: the borrower must `approve` the lending contract to spend `loan.repayAmount` USDC.
 - Repayment must happen before the deadline.
@@ -750,3 +748,5 @@ const { address } = await createGaslessClient(WALLET_ID, WALLET_ADDR);
 - Anyone can call `claimDefaulted` after the deadline passes.
 - Always verify 8004 SBT before funding a loan.
 - Contract address on Celo: `0x4B1B2b5F216771d004e5181cb98469C4d2B167Ff`.
+- All write operations use `sendGaslessContractCall` from `src/smart-account.ts` — gas is sponsored by Candide.
+- The agent's on-chain address is `AGENT_WALLET_ADDRESS` (Privy EOA = smart account via EIP-7702).
