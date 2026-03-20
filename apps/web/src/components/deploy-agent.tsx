@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useAccount, useWriteContract } from "wagmi";
+import { useAccount, useWriteContract, useSwitchChain } from "wagmi";
+import { celo } from "viem/chains";
 import { SelfVerification } from "@/components/self-verification";
 import { LendingDashboard } from "@/components/lending-dashboard";
 import dynamic from "next/dynamic";
@@ -51,6 +52,7 @@ const inputClass =
 export function DeployAgent() {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const { switchChainAsync } = useSwitchChain();
   const [step, setStep] = useState<Step>("deploy");
   const [isVerified, setIsVerified] = useState(false);
   const [isDelegated, setIsDelegated] = useState(false);
@@ -75,7 +77,16 @@ export function DeployAgent() {
         address: agentAddress || "",
         chainType: "EVM" as any,
       },
-      hiddenUI: ["toAddress", "toToken", "toChain"],
+      // Lock destination: only Celo allowed as target chain, only USDC as target token
+      chains: {
+        to: { allow: [42220] },
+      },
+      tokens: {
+        to: {
+          allow: [{ chainId: 42220, address: CELO_USDC }],
+        },
+      },
+      hiddenUI: ["toAddress", "toToken"],
       theme: {
         container: {
           border: "1px solid rgb(220, 215, 206)",
@@ -149,10 +160,13 @@ export function DeployAgent() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
+      // Ensure wallet is on Celo
+      await switchChainAsync({ chainId: celo.id });
       await writeContractAsync({
         address: REGISTRY_ADDRESS,
         abi: REGISTRY_ABI,
         functionName: "setAgentWallet",
+        chainId: celo.id,
         args: [
           BigInt(agentId),
           data.newWallet as `0x${string}`,
@@ -203,9 +217,14 @@ export function DeployAgent() {
         <div className="flex items-center justify-between border-b border-cream-dark pb-4">
           <div>
             <span className={labelClass}>Agent Wallet</span>
-            <p className="mt-1 font-mono text-sm text-ink">
+            <button
+              onClick={() => navigator.clipboard.writeText(agentAddress)}
+              title="Copy to clipboard"
+              className="mt-1 flex items-center gap-1.5 font-mono text-sm text-ink hover:text-ink-light transition-colors cursor-pointer"
+            >
               {agentAddress.slice(0, 6)}...{agentAddress.slice(-4)}
-            </p>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            </button>
           </div>
           <div>
             <span className={labelClass}>Network</span>
@@ -364,14 +383,8 @@ export function DeployAgent() {
       {/* Step 4: Monitor + Fund */}
       {step === "monitor" && agentAddress && (
         <>
-          <LendingDashboard
-            agentAddress={agentAddress}
-            humanAddress={address}
-            isVerified={isVerified}
-          />
-
-          {/* Fund agent section */}
-          <div className="border-t border-cream-dark pt-8">
+          {/* Fund agent section — always visible at top */}
+          <div>
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-serif text-xl text-ink">
@@ -394,6 +407,14 @@ export function DeployAgent() {
                 <LiFiWidget {...lifiConfig} />
               </div>
             )}
+          </div>
+
+          <div className="border-t border-cream-dark pt-8">
+            <LendingDashboard
+              agentAddress={agentAddress}
+              humanAddress={address}
+              isVerified={isVerified}
+            />
           </div>
         </>
       )}
