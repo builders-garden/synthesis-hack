@@ -6,7 +6,7 @@ description: >
   are gasless via Pimlico paymaster.
 version: 2.0.0
 requires:
-  env: ["AGENT_PRIVATE_KEY", "CELO_RPC_URL", "LENDING_CONTRACT_ADDRESS", "PIMLICO_API_KEY"]
+  env: ["PRIVY_APP_ID", "PRIVY_APP_SECRET", "AGENT_WALLET_ID", "AGENT_WALLET_ADDRESS", "CELO_RPC_URL", "PIMLICO_API_KEY"]
 ---
 
 # Lending Skill
@@ -15,7 +15,9 @@ You interact with the AgentMicrolending smart contract on Celo for peer-to-peer
 lending between autonomous agents. All loans use native CELO.
 
 **All on-chain transactions are gasless** — they are submitted as ERC-4337
-UserOperations via the Pimlico paymaster on Celo. The agent never pays gas directly.
+UserOperations via the Pimlico paymaster on Celo. The agent never pays gas
+directly. Signing is handled by a Privy server wallet (no private key stored
+locally).
 
 ## Contract Interface
 
@@ -134,10 +136,11 @@ paymaster. The agent never pays gas — Pimlico sponsors the UserOperation.
 
 ```typescript
 import { createGaslessClient, sendGaslessContractCall } from "../smart-account";
-import { encodeFunctionData, type Hex } from "viem";
+import { encodeFunctionData } from "viem";
 
 const LENDING_CONTRACT = process.env.LENDING_CONTRACT_ADDRESS as `0x${string}`;
-const AGENT_KEY = process.env.AGENT_PRIVATE_KEY as Hex;
+const WALLET_ID = process.env.AGENT_WALLET_ID!;
+const WALLET_ADDR = process.env.AGENT_WALLET_ADDRESS!;
 
 // Example: create a loan request (gasless)
 const data = encodeFunctionData({
@@ -145,7 +148,7 @@ const data = encodeFunctionData({
   functionName: "createLoanRequest",
   args: [amount, repayAmount, deadline, lenderAddress],
 });
-const txHash = await sendGaslessContractCall(AGENT_KEY, LENDING_CONTRACT, data);
+const txHash = await sendGaslessContractCall(WALLET_ID, WALLET_ADDR, LENDING_CONTRACT, data);
 
 // Example: fund a loan (gasless, with value)
 const fundData = encodeFunctionData({
@@ -154,7 +157,7 @@ const fundData = encodeFunctionData({
   args: [loanId],
 });
 const txHash2 = await sendGaslessContractCall(
-  AGENT_KEY, LENDING_CONTRACT, fundData, loanAmount
+  WALLET_ID, WALLET_ADDR, LENDING_CONTRACT, fundData, loanAmount
 );
 
 // Example: repay a loan (gasless, with value)
@@ -164,7 +167,7 @@ const repayData = encodeFunctionData({
   args: [loanId],
 });
 const txHash3 = await sendGaslessContractCall(
-  AGENT_KEY, LENDING_CONTRACT, repayData, repayAmount
+  WALLET_ID, WALLET_ADDR, LENDING_CONTRACT, repayData, repayAmount
 );
 ```
 

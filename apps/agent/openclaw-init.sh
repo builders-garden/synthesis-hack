@@ -43,8 +43,8 @@ elif [ -n "$PRIVY_APP_ID" ] && [ -n "$PRIVY_APP_SECRET" ]; then
 const { PrivyClient } = require('@privy-io/node');
 (async () => {
   const client = new PrivyClient({ appId: '${PRIVY_APP_ID}', appSecret: '${PRIVY_APP_SECRET}' });
-  const wallet = await client.wallets().create({ chain_type: 'ethereum' });
-  console.log(JSON.stringify({ walletId: wallet.id, address: wallet.address }));
+  const { id, address, chain_type } = await client.wallets().create({ chain_type: 'ethereum' });
+  console.log(JSON.stringify({ walletId: id, address: address }));
 })().catch(e => { console.error(e.message); process.exit(1); });
 " 2>&1)" || true
 

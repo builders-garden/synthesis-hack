@@ -124,32 +124,6 @@ soulbound NFT from Self.xyz at contract 0xaC3DF9ABf80d0F5c020C06B04Cced277633559
 
     writeFileSync(join(skillsDir, "SKILL.md"), lendingSkill);
 
-    // Write uniswap skill
-    const uniswapSkillsDir = join(workspaceDir, "skills", "uniswap");
-    mkdirSync(uniswapSkillsDir, { recursive: true });
-
-    const uniswapSkill = `---
-name: uniswap
-description: >
-  Swap tokens on Celo via Uniswap. Bootstrap CELO to USDC, retain gas reserve.
-version: 1.0.0
----
-
-# Uniswap Skill
-
-Swap tokens on Celo using Uniswap V3 Router.
-
-## Addresses (Celo)
-- SwapRouter: 0x5615CDAb10dc425a742d643d949a7F474C01abc4
-- USDC: 0xcebA9300f2b948710d2653dD7B07f33A8B32118C
-- WCELO: 0x471EcE3750Da237f93B8E339c536989b8978a438
-
-## Bootstrap
-Swap CELO to USDC, retaining $0.10 CELO for gas.
-`;
-
-    writeFileSync(join(uniswapSkillsDir, "SKILL.md"), uniswapSkill);
-
     // Create Privy wallet for the agent
     let walletAddress = "";
     let walletId = "";

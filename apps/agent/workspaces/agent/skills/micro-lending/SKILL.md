@@ -9,7 +9,7 @@ description: >
   on the microlending protocol.
 version: 1.0.0
 requires:
-  env: ["AGENT_PRIVATE_KEY", "CELO_RPC_URL", "LENDING_CONTRACT_ADDRESS", "PIMLICO_API_KEY"]
+  env: ["PRIVY_APP_ID", "PRIVY_APP_SECRET", "AGENT_WALLET_ID", "AGENT_WALLET_ADDRESS", "CELO_RPC_URL", "PIMLICO_API_KEY"]
 ---
 
 # Micro-Lending Skill
@@ -21,19 +21,22 @@ Celo — a 6-decimal ERC-20 stablecoin.
 
 Every on-chain transaction is submitted as an ERC-4337 UserOperation via a
 permissionless Safe smart account with Pimlico as the paymaster — the agent
-never pays gas directly.
+never pays gas directly. Signing is handled by a Privy server wallet (no
+private key stored locally).
 
 ## Smart Account Setup
 
 Before calling any contract function, create a gasless smart account client.
-This wraps a standard EOA key into a Safe smart account and routes all
-transactions through the Pimlico bundler/paymaster on Celo.
+This uses a Privy managed server wallet as the signer, wraps it into a Safe
+smart account, and routes all transactions through the Pimlico
+bundler/paymaster on Celo.
 
 ```typescript
-import { createPublicClient, http, type Hex } from "viem";
+import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
-import { privateKeyToAccount } from "viem/accounts";
 import { entryPoint07Address } from "viem/account-abstraction";
+import { PrivyClient } from "@privy-io/node";
+import { createViemAccount } from "@privy-io/node/viem";
 import { createPimlicoClient } from "permissionless/clients/pimlico";
 import { toSafeSmartAccount } from "permissionless/accounts";
 import { createSmartAccountClient } from "permissionless";
@@ -54,7 +57,16 @@ const pimlicoClient = createPimlicoClient({
   },
 });
 
-const owner = privateKeyToAccount(process.env.AGENT_PRIVATE_KEY as Hex);
+// Create a Privy client and derive a viem-compatible signer
+const privy = new PrivyClient({
+  appId: process.env.PRIVY_APP_ID!,
+  appSecret: process.env.PRIVY_APP_SECRET!,
+});
+
+const owner = await createViemAccount(privy, {
+  walletId: process.env.AGENT_WALLET_ID!,
+  address: process.env.AGENT_WALLET_ADDRESS! as `0x${string}`,
+});
 
 const safeAccount = await toSafeSmartAccount({
   client: publicClient,
@@ -661,9 +673,10 @@ the client manually:
 
 ```typescript
 import { createGaslessClient, sendGaslessContractCall } from "../smart-account";
-import { encodeFunctionData, type Hex } from "viem";
+import { encodeFunctionData } from "viem";
 
-const AGENT_KEY = process.env.AGENT_PRIVATE_KEY as Hex;
+const WALLET_ID = process.env.AGENT_WALLET_ID!;
+const WALLET_ADDR = process.env.AGENT_WALLET_ADDRESS!;
 const LENDING_CONTRACT = "0xdDffb113C576FE87E2ceE9d38A92839b18e3e637" as const;
 
 // Approve USDC first
@@ -672,7 +685,7 @@ const approveData = encodeFunctionData({
   functionName: "approve",
   args: [LENDING_CONTRACT, parseUSDC("100")],
 });
-await sendGaslessContractCall(AGENT_KEY, USDC_ADDRESS, approveData);
+await sendGaslessContractCall(WALLET_ID, WALLET_ADDR, USDC_ADDRESS, approveData);
 
 // Create a loan request (no approval needed)
 const data = encodeFunctionData({
@@ -680,7 +693,7 @@ const data = encodeFunctionData({
   functionName: "createLoanRequest",
   args: [parseUSDC("10"), parseUSDC("11"), BigInt(deadline), lenderAddress],
 });
-const txHash = await sendGaslessContractCall(AGENT_KEY, LENDING_CONTRACT, data);
+const txHash = await sendGaslessContractCall(WALLET_ID, WALLET_ADDR, LENDING_CONTRACT, data);
 
 // Fund a loan (approval must be done first)
 const fundData = encodeFunctionData({
@@ -688,10 +701,10 @@ const fundData = encodeFunctionData({
   functionName: "fundLoan",
   args: [loanId],
 });
-const txHash2 = await sendGaslessContractCall(AGENT_KEY, LENDING_CONTRACT, fundData);
+const txHash2 = await sendGaslessContractCall(WALLET_ID, WALLET_ADDR, LENDING_CONTRACT, fundData);
 
 // Read operation: use publicClient directly (no gas needed)
-const { address } = await createGaslessClient(AGENT_KEY);
+const { address } = await createGaslessClient(WALLET_ID, WALLET_ADDR);
 // address is the agent's smart account address on-chain
 ```
 

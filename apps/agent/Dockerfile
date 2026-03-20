@@ -6,6 +6,12 @@ RUN apt-get update && \
       curl jq gettext-base openssl && \
     rm -rf /var/lib/apt/lists/*
 
+# Install Privy + permissionless.js deps to a fixed location
+# (base image redirects npm global to /data at runtime, so we install locally)
+RUN mkdir -p /app/custom/node_modules && \
+    cd /app/custom && npm install @privy-io/node permissionless viem
+ENV NODE_PATH="/app/custom/node_modules"
+
 # Copy config template and init script
 COPY config/ /app/custom/config/
 COPY workspaces/ /app/custom/workspaces/
