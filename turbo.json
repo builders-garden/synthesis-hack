@@ -3,7 +3,21 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "dist/**"]
+      "outputs": [".next/**", "dist/**"],
+      "env": [
+        "NEXT_PUBLIC_REOWN_PROJECT_ID",
+        "NEXT_PUBLIC_SELF_ENDPOINT",
+        "RAILWAY_API_TOKEN",
+        "RAILWAY_PROJECT_ID",
+        "PRIVY_APP_ID",
+        "PRIVY_APP_SECRET",
+        "CELO_RPC_URL",
+        "PIMLICO_API_KEY",
+        "CANDIDE_API_KEY",
+        "CANDIDE_SPONSORSHIP_POLICY_ID",
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_ALLOWED_USERS"
+      ]
     },
     "dev": {
       "cache": false,
