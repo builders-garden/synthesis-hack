@@ -51,6 +51,8 @@ export function DeployAgent() {
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
   const [walletId, setWalletId] = useState<string | null>(null);
   const [agentId, setAgentId] = useState<number | null>(null);
+  const [serviceId, setServiceId] = useState<string | null>(null);
+  const [environmentId, setEnvironmentId] = useState<string | null>(null);
   const [deploying, setDeploying] = useState(false);
   const [delegating, setDelegating] = useState(false);
   const [agentName, setAgentName] = useState("");
@@ -71,6 +73,8 @@ export function DeployAgent() {
       if (data.error) throw new Error(data.error);
 
       setWalletId(data.walletId);
+      setServiceId(data.serviceId);
+      setEnvironmentId(data.environmentId);
       // EIP-7702: EOA address = smart account address
       setAgentAddress(data.walletAddress);
       setStep("verify");
@@ -122,6 +126,19 @@ export function DeployAgent() {
           data.signature as `0x${string}`,
         ],
       });
+
+      // Push SELF_AGENT_ID to the agent's Railway env vars
+      if (serviceId && environmentId) {
+        await fetch("/api/agent/set-env", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            serviceId,
+            environmentId,
+            vars: { SELF_AGENT_ID: String(agentId) },
+          }),
+        });
+      }
 
       setIsDelegated(true);
       setStep("fund");

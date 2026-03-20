@@ -9,7 +9,15 @@ description: >
   on the microlending protocol.
 version: 1.0.0
 requires:
-  env: ["PRIVY_APP_ID", "PRIVY_APP_SECRET", "AGENT_WALLET_ID", "AGENT_WALLET_ADDRESS", "CELO_RPC_URL", "PIMLICO_API_KEY"]
+  env:
+    [
+      "PRIVY_APP_ID",
+      "PRIVY_APP_SECRET",
+      "AGENT_WALLET_ID",
+      "AGENT_WALLET_ADDRESS",
+      "CELO_RPC_URL",
+      "PIMLICO_API_KEY",
+    ]
 ---
 
 # Micro-Lending Skill
@@ -99,7 +107,7 @@ is used for all read-only view calls. The smart account address
 ```typescript
 const USDC_ADDRESS = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C" as const;
 const USDC_DECIMALS = 6;
-const LENDING_CONTRACT = "0xdDffb113C576FE87E2ceE9d38A92839b18e3e637" as const;
+const LENDING_CONTRACT = "0x4B1B2b5F216771d004e5181cb98469C4d2B167Ff" as const;
 
 // Helper: convert human-readable USDC amount to smallest unit
 function parseUSDC(amount: string | number): bigint {
@@ -299,13 +307,13 @@ const ERC20_ABI = [
 
 The `status` field in a LoanRequest is a uint8 enum:
 
-| Value | Status    | Meaning                                     |
-|-------|-----------|---------------------------------------------|
-| 0     | Open      | Waiting for a lender to fund                |
-| 1     | Funded    | Lender sent USDC, borrower received funds   |
-| 2     | Repaid    | Borrower repaid principal + interest         |
-| 3     | Defaulted | Deadline passed without repayment            |
-| 4     | Cancelled | Borrower cancelled before funding            |
+| Value | Status    | Meaning                                   |
+| ----- | --------- | ----------------------------------------- |
+| 0     | Open      | Waiting for a lender to fund              |
+| 1     | Funded    | Lender sent USDC, borrower received funds |
+| 2     | Repaid    | Borrower repaid principal + interest      |
+| 3     | Defaulted | Deadline passed without repayment         |
+| 4     | Cancelled | Borrower cancelled before funding         |
 
 ## ERC-20 Approval
 
@@ -320,7 +328,12 @@ import { encodeFunctionData } from "viem";
 const approveData = encodeFunctionData({
   abi: ERC20_ABI,
   functionName: "approve",
-  args: [LENDING_CONTRACT, BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")],
+  args: [
+    LENDING_CONTRACT,
+    BigInt(
+      "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    ),
+  ],
 });
 
 const txHash = await smartAccountClient.sendTransaction({
@@ -347,8 +360,9 @@ const allowance = await publicClient.readContract({
 ### 1. Create a Loan Request (Borrower)
 
 Publish a request to borrow USDC. Specify the amount, repay amount (must be
->= amount), a deadline (unix timestamp), and optionally a specific lender
-(`0x0000000000000000000000000000000000000000` for open to anyone).
+
+> = amount), a deadline (unix timestamp), and optionally a specific lender
+> (`0x0000000000000000000000000000000000000000` for open to anyone).
 
 No approval is needed to create a request — it only records data on-chain.
 
@@ -359,10 +373,10 @@ const data = encodeFunctionData({
   abi: LENDING_ABI,
   functionName: "createLoanRequest",
   args: [
-    parseUSDC("10"),                                     // borrow 10 USDC
-    parseUSDC("11"),                                     // repay 11 USDC (10% interest)
-    BigInt(Math.floor(Date.now() / 1000) + 7 * 86400),  // deadline: 7 days from now
-    "0x0000000000000000000000000000000000000000",        // open to any lender
+    parseUSDC("10"), // borrow 10 USDC
+    parseUSDC("11"), // repay 11 USDC (10% interest)
+    BigInt(Math.floor(Date.now() / 1000) + 7 * 86400), // deadline: 7 days from now
+    "0x0000000000000000000000000000000000000000", // open to any lender
   ],
 });
 
@@ -677,7 +691,7 @@ import { encodeFunctionData } from "viem";
 
 const WALLET_ID = process.env.AGENT_WALLET_ID!;
 const WALLET_ADDR = process.env.AGENT_WALLET_ADDRESS!;
-const LENDING_CONTRACT = "0xdDffb113C576FE87E2ceE9d38A92839b18e3e637" as const;
+const LENDING_CONTRACT = "0x4B1B2b5F216771d004e5181cb98469C4d2B167Ff" as const;
 
 // Approve USDC first
 const approveData = encodeFunctionData({
@@ -685,7 +699,12 @@ const approveData = encodeFunctionData({
   functionName: "approve",
   args: [LENDING_CONTRACT, parseUSDC("100")],
 });
-await sendGaslessContractCall(WALLET_ID, WALLET_ADDR, USDC_ADDRESS, approveData);
+await sendGaslessContractCall(
+  WALLET_ID,
+  WALLET_ADDR,
+  USDC_ADDRESS,
+  approveData,
+);
 
 // Create a loan request (no approval needed)
 const data = encodeFunctionData({
@@ -693,7 +712,12 @@ const data = encodeFunctionData({
   functionName: "createLoanRequest",
   args: [parseUSDC("10"), parseUSDC("11"), BigInt(deadline), lenderAddress],
 });
-const txHash = await sendGaslessContractCall(WALLET_ID, WALLET_ADDR, LENDING_CONTRACT, data);
+const txHash = await sendGaslessContractCall(
+  WALLET_ID,
+  WALLET_ADDR,
+  LENDING_CONTRACT,
+  data,
+);
 
 // Fund a loan (approval must be done first)
 const fundData = encodeFunctionData({
@@ -701,7 +725,12 @@ const fundData = encodeFunctionData({
   functionName: "fundLoan",
   args: [loanId],
 });
-const txHash2 = await sendGaslessContractCall(WALLET_ID, WALLET_ADDR, LENDING_CONTRACT, fundData);
+const txHash2 = await sendGaslessContractCall(
+  WALLET_ID,
+  WALLET_ADDR,
+  LENDING_CONTRACT,
+  fundData,
+);
 
 // Read operation: use publicClient directly (no gas needed)
 const { address } = await createGaslessClient(WALLET_ID, WALLET_ADDR);
@@ -720,4 +749,4 @@ const { address } = await createGaslessClient(WALLET_ID, WALLET_ADDR);
 - Only the original borrower can cancel or repay their loan.
 - Anyone can call `claimDefaulted` after the deadline passes.
 - Always verify 8004 SBT before funding a loan.
-- Contract address on Celo: `0xdDffb113C576FE87E2ceE9d38A92839b18e3e637`.
+- Contract address on Celo: `0x4B1B2b5F216771d004e5181cb98469C4d2B167Ff`.

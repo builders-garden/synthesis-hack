@@ -4,6 +4,15 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+/// @notice Minimal interface for the Self Agent Registry (ERC-8004).
+interface ISelfAgentRegistry {
+    /// @notice Returns the wallet address linked to an agent ID.
+    function getAgentWallet(uint256 agentId) external view returns (address);
+
+    /// @notice Returns true if the agent has an active human-backed proof.
+    function hasHumanProof(uint256 agentId) external view returns (bool);
+}
+
 /// @title AgentMicrolending
 /// @notice P2P non-collateralized microlending protocol for autonomous agents.
 ///         Agents are simply EVM addresses. All data is stored on-chain and
@@ -41,6 +50,7 @@ contract AgentMicrolending {
     // ──────────────────────────────────────────────
 
     IERC20 public immutable token;
+    ISelfAgentRegistry public immutable selfRegistry;
 
     LoanRequest[] private loans;
 
@@ -83,15 +93,19 @@ contract AgentMicrolending {
     error DeadlineReached();
     error Reentrancy();
     error ZeroAddress();
+    error NotVerifiedAgent();
 
     // ──────────────────────────────────────────────
     //  Constructor
     // ──────────────────────────────────────────────
 
-    /// @param _token The ERC-20 token used for all loans (e.g. USDC).
-    constructor(address _token) {
+    /// @param _token        The ERC-20 token used for all loans (e.g. USDC).
+    /// @param _selfRegistry The Self Agent Registry (ERC-8004) used to verify human-backed agents.
+    constructor(address _token, address _selfRegistry) {
         if (_token == address(0)) revert ZeroAddress();
+        if (_selfRegistry == address(0)) revert ZeroAddress();
         token = IERC20(_token);
+        selfRegistry = ISelfAgentRegistry(_selfRegistry);
     }
 
     // ──────────────────────────────────────────────
@@ -105,18 +119,27 @@ contract AgentMicrolending {
         _locked = 0;
     }
 
+    /// @dev Reverts unless msg.sender is the wallet linked to `agentId` AND that agent has a valid human proof.
+    modifier onlyVerifiedAgent(uint256 agentId) {
+        if (selfRegistry.getAgentWallet(agentId) != msg.sender) revert NotVerifiedAgent();
+        if (!selfRegistry.hasHumanProof(agentId)) revert NotVerifiedAgent();
+        _;
+    }
+
     // ──────────────────────────────────────────────
     //  Borrower actions
     // ──────────────────────────────────────────────
 
-    /// @notice Create a new loan request.
+    /// @notice Create a new loan request. Caller must be a verified agent (human-backed via Self).
     /// @param amount      Amount to borrow (in token units, e.g. USDC with 6 decimals).
     /// @param repayAmount Total amount to repay (principal + interest).
     /// @param deadline    Unix timestamp by which the loan must be repaid.
     /// @param lender      Specific lender address, or address(0) for open request.
+    /// @param agentId     The Self Agent ID that msg.sender is linked to.
     /// @return loanId     The ID of the created loan request.
-    function createLoanRequest(uint256 amount, uint256 repayAmount, uint256 deadline, address lender)
+    function createLoanRequest(uint256 amount, uint256 repayAmount, uint256 deadline, address lender, uint256 agentId)
         external
+        onlyVerifiedAgent(agentId)
         returns (uint256 loanId)
     {
         if (amount == 0) revert ZeroAmount();
