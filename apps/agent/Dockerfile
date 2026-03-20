@@ -9,7 +9,7 @@ RUN apt-get update && \
 # Install Privy + permissionless.js deps to a fixed location
 # (base image redirects npm global to /data at runtime, so we install locally)
 RUN mkdir -p /app/custom/node_modules && \
-    cd /app/custom && npm install @privy-io/node permissionless viem
+    cd /app/custom && npm install @privy-io/node permissionless@0.2.57 viem
 ENV NODE_PATH="/app/custom/node_modules"
 
 # Copy config template and init script
