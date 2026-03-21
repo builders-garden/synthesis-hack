@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useWriteContract, useSwitchChain } from "wagmi";
+import { useAccount, useWriteContract, useSwitchChain, useReadContract } from "wagmi";
 import { celo } from "viem/chains";
 import { Header } from "@/components/header";
 
@@ -16,6 +16,13 @@ const REGISTRY_ABI = [
     inputs: [{ name: "agentId", type: "uint256" }],
     outputs: [],
   },
+  {
+    name: "getAgentWallet",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [{ name: "", type: "address" }],
+  },
 ] as const;
 
 const labelClass =
@@ -28,9 +35,19 @@ export default function AdminPage() {
   const { writeContractAsync } = useWriteContract();
   const { switchChainAsync } = useSwitchChain();
   const [agentId, setAgentId] = useState("");
+  const [lookupId, setLookupId] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const { data: agentWallet, refetch: refetchWallet, isFetching: lookingUp } = useReadContract({
+    address: REGISTRY_ADDRESS,
+    abi: REGISTRY_ABI,
+    functionName: "getAgentWallet",
+    chainId: celo.id,
+    args: lookupId ? [BigInt(lookupId)] : undefined,
+    query: { enabled: false },
+  });
 
   const handleUnset = async () => {
     if (!agentId.trim()) return;
@@ -112,6 +129,46 @@ export default function AdminPage() {
             {error && (
               <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 break-all">
                 {error}
+              </div>
+            )}
+
+            {/* Lookup Agent Wallet */}
+            <div className="border-t border-cream-dark pt-8">
+              <h3 className="font-serif text-xl text-ink">
+                Lookup Agent Wallet
+              </h3>
+              <p className="mt-2 text-sm text-ink-light">
+                Query the wallet address delegated to an agent ID.
+              </p>
+            </div>
+
+            <div>
+              <label className={labelClass}>Agent ID</label>
+              <input
+                type="text"
+                value={lookupId}
+                onChange={(e) => setLookupId(e.target.value)}
+                placeholder="e.g. 42"
+                className={inputClass}
+              />
+            </div>
+
+            <button
+              onClick={() => refetchWallet()}
+              disabled={lookingUp || !lookupId.trim()}
+              className="w-full border border-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-ink transition-opacity hover:opacity-80 disabled:opacity-30"
+            >
+              {lookingUp ? "Loading..." : "Lookup"}
+            </button>
+
+            {agentWallet !== undefined && (
+              <div className="rounded border border-cream-dark bg-cream px-4 py-3">
+                <span className={labelClass}>Wallet</span>
+                <p className="mt-1 font-mono text-sm text-ink break-all">
+                  {agentWallet === "0x0000000000000000000000000000000000000000"
+                    ? "No wallet set"
+                    : agentWallet}
+                </p>
               </div>
             )}
 
