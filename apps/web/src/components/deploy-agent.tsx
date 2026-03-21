@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useAccount, useWriteContract, useSwitchChain } from "wagmi";
 import { celo } from "viem/chains";
 import { SelfVerification } from "@/components/self-verification";
@@ -38,11 +38,49 @@ const REGISTRY_ABI = [
 
 const STEPS = [
   { id: "deploy", label: "Deploy Agent" },
+  { id: "telegram", label: "Telegram" },
   { id: "verify", label: "Verify Identity" },
   { id: "metadata", label: "Set Metadata" },
   { id: "delegate", label: "Delegate" },
   { id: "monitor", label: "Monitor" },
 ] as const;
+
+// --- localStorage persistence helpers ---
+interface DeployedAgentData {
+  agentName: string;
+  agentAddress: string;
+  walletId: string;
+  serviceId: string;
+  environmentId: string;
+  agentId?: number;
+  isVerified?: boolean;
+  isDelegated?: boolean;
+  telegramBotToken?: string;
+  telegramUserId?: string;
+}
+
+const STORAGE_KEY_PREFIX = "openclaw_deployed_agent_";
+
+function getStorageKey(walletAddress: string) {
+  return `${STORAGE_KEY_PREFIX}${walletAddress.toLowerCase()}`;
+}
+
+function saveDeployedAgent(walletAddress: string, data: DeployedAgentData) {
+  try {
+    localStorage.setItem(getStorageKey(walletAddress), JSON.stringify(data));
+  } catch {}
+}
+
+function loadDeployedAgent(
+  walletAddress: string
+): DeployedAgentData | null {
+  try {
+    const raw = localStorage.getItem(getStorageKey(walletAddress));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 type Step = (typeof STEPS)[number]["id"];
 
@@ -68,6 +106,50 @@ export function DeployAgent() {
   const [agentName, setAgentName] = useState("");
   const [deployError, setDeployError] = useState<string | null>(null);
   const [showFundWidget, setShowFundWidget] = useState(false);
+  const [telegramBotToken, setTelegramBotToken] = useState("");
+  const [telegramUserId, setTelegramUserId] = useState("");
+  const [savingTelegram, setSavingTelegram] = useState(false);
+
+  // Restore deployed agent from localStorage on wallet connect
+  useEffect(() => {
+    if (!address) return;
+    const saved = loadDeployedAgent(address);
+    if (saved) {
+      setAgentName(saved.agentName);
+      setAgentAddress(saved.agentAddress);
+      setWalletId(saved.walletId);
+      setServiceId(saved.serviceId);
+      setEnvironmentId(saved.environmentId);
+      if (saved.agentId != null) setAgentId(saved.agentId);
+      if (saved.isVerified) setIsVerified(true);
+      if (saved.isDelegated) setIsDelegated(true);
+      if (saved.telegramBotToken) setTelegramBotToken(saved.telegramBotToken);
+      if (saved.telegramUserId) setTelegramUserId(saved.telegramUserId);
+      setStep("monitor");
+    }
+  }, [address]);
+
+  // Persist current agent state to localStorage
+  const persistAgent = useCallback(
+    (overrides?: Partial<DeployedAgentData>) => {
+      if (!address || !agentAddress || !walletId || !serviceId || !environmentId)
+        return;
+      saveDeployedAgent(address, {
+        agentName,
+        agentAddress,
+        walletId,
+        serviceId,
+        environmentId,
+        agentId: agentId ?? undefined,
+        isVerified,
+        isDelegated,
+        telegramBotToken: telegramBotToken || undefined,
+        telegramUserId: telegramUserId || undefined,
+        ...overrides,
+      });
+    },
+    [address, agentName, agentAddress, walletId, serviceId, environmentId, agentId, isVerified, isDelegated, telegramBotToken, telegramUserId]
+  );
 
   // LI.FI widget config — fixed destination: USDC on Celo to agent wallet
   const lifiConfig: WidgetConfig = useMemo(
@@ -125,7 +207,17 @@ export function DeployAgent() {
       setServiceId(data.serviceId);
       setEnvironmentId(data.environmentId);
       setAgentAddress(data.walletAddress);
-      setStep("verify");
+      // Persist immediately after deploy
+      if (address) {
+        saveDeployedAgent(address, {
+          agentName: agentName.trim(),
+          agentAddress: data.walletAddress,
+          walletId: data.walletId,
+          serviceId: data.serviceId,
+          environmentId: data.environmentId,
+        });
+      }
+      setStep("telegram");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Deploy failed";
       setDeployError(msg);
@@ -142,6 +234,7 @@ export function DeployAgent() {
     if (selfAgentId != null) {
       setAgentId(selfAgentId);
     }
+    persistAgent({ isVerified: true, agentId: selfAgentId ?? undefined });
     setStep("metadata");
   };
 
@@ -194,6 +287,7 @@ export function DeployAgent() {
       }
 
       setIsDelegated(true);
+      persistAgent({ isDelegated: true });
       setStep("monitor");
     } catch (err) {
       console.error("Delegation failed:", err);
@@ -322,7 +416,112 @@ export function DeployAgent() {
         </div>
       )}
 
-      {/* Step 2: Verify Identity */}
+      {/* Step 2: Telegram Configuration */}
+      {step === "telegram" && (
+        <div className="mx-auto max-w-md">
+          <h3 className="font-serif text-xl text-ink">
+            Connect Telegram
+          </h3>
+          <p className="mt-2 text-sm text-ink-light">
+            Link a Telegram bot so you can chat with your agent directly.
+            Create a bot via{" "}
+            <a
+              href="https://t.me/BotFather"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-ink"
+            >
+              @BotFather
+            </a>{" "}
+            and paste the token below.
+          </p>
+
+          <div className="mt-6 space-y-4">
+            <div>
+              <label className={labelClass}>Bot Token</label>
+              <input
+                type="text"
+                value={telegramBotToken}
+                onChange={(e) => setTelegramBotToken(e.target.value)}
+                placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label className={labelClass}>Your Telegram User ID</label>
+              <input
+                type="text"
+                value={telegramUserId}
+                onChange={(e) => setTelegramUserId(e.target.value)}
+                placeholder="123456789"
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-ink-lighter">
+                Send /start to{" "}
+                <a
+                  href="https://t.me/userinfobot"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-ink-light"
+                >
+                  @userinfobot
+                </a>{" "}
+                to get your ID.
+              </p>
+            </div>
+
+            <button
+              onClick={async () => {
+                if (!telegramBotToken.trim() || !telegramUserId.trim()) return;
+                setSavingTelegram(true);
+                try {
+                  await fetch("/api/agent/set-env", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      serviceId,
+                      environmentId,
+                      vars: {
+                        TELEGRAM_BOT_TOKEN: telegramBotToken.trim(),
+                        TELEGRAM_ALLOWED_USERS: telegramUserId.trim(),
+                      },
+                    }),
+                  });
+                  persistAgent({
+                    telegramBotToken: telegramBotToken.trim(),
+                    telegramUserId: telegramUserId.trim(),
+                  });
+                  setStep("verify");
+                } catch (err) {
+                  console.error("Failed to set Telegram env vars:", err);
+                } finally {
+                  setSavingTelegram(false);
+                }
+              }}
+              disabled={
+                savingTelegram ||
+                !telegramBotToken.trim() ||
+                !telegramUserId.trim()
+              }
+              className="w-full bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80 disabled:opacity-30"
+            >
+              {savingTelegram ? "Saving..." : "Save & Continue"}
+            </button>
+          </div>
+
+          <div className="mt-8 border-t border-cream-dark pt-6">
+            <button
+              onClick={() => setStep("verify")}
+              className="font-mono text-xs text-ink-lighter hover:text-ink"
+            >
+              Skip (can be configured later)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Verify Identity */}
       {step === "verify" && (
         <div className="mx-auto max-w-md">
           <SelfVerification
@@ -341,7 +540,7 @@ export function DeployAgent() {
         </div>
       )}
 
-      {/* Step 3: Set Metadata */}
+      {/* Step 4: Set Metadata */}
       {step === "metadata" && agentId != null && (
         <div>
           <AgentMetadataForm
@@ -360,7 +559,7 @@ export function DeployAgent() {
         </div>
       )}
 
-      {/* Step 4: Delegate Identity to Agent Wallet */}
+      {/* Step 5: Delegate Identity to Agent Wallet */}
       {step === "delegate" && (
         <div className="mx-auto max-w-md">
           <h3 className="font-serif text-xl text-ink">
@@ -405,7 +604,7 @@ export function DeployAgent() {
         </div>
       )}
 
-      {/* Step 5: Monitor + Fund */}
+      {/* Step 6: Monitor + Fund */}
       {step === "monitor" && agentAddress && (
         <>
           {/* Fund agent section — always visible at top */}
