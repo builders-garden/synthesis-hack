@@ -5,6 +5,7 @@ import { useAccount, useWriteContract, useSwitchChain } from "wagmi";
 import { celo } from "viem/chains";
 import { SelfVerification } from "@/components/self-verification";
 import { LendingDashboard } from "@/components/lending-dashboard";
+import { AgentMetadataForm } from "@/components/agent-metadata-form";
 import dynamic from "next/dynamic";
 import type { WidgetConfig } from "@lifi/widget";
 
@@ -16,9 +17,9 @@ const LiFiWidget = dynamic(
 // USDC on Celo
 const CELO_USDC = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C";
 
-// Self Agent Registry on Celo mainnet
+// Self Agent Registry (ERC-8004) on Celo mainnet
 const REGISTRY_ADDRESS =
-  "0xaC3DF9ABf80d0F5c020C06B04Cced27763355944" as const;
+  "0x62E37d0f6c5f67784b8828B3dF68BCDbB2e55095" as const;
 
 const REGISTRY_ABI = [
   {
@@ -38,6 +39,7 @@ const REGISTRY_ABI = [
 const STEPS = [
   { id: "deploy", label: "Deploy Agent" },
   { id: "verify", label: "Verify Identity" },
+  { id: "metadata", label: "Set Metadata" },
   { id: "delegate", label: "Delegate" },
   { id: "monitor", label: "Monitor" },
 ] as const;
@@ -140,6 +142,10 @@ export function DeployAgent() {
     if (selfAgentId != null) {
       setAgentId(selfAgentId);
     }
+    setStep("metadata");
+  };
+
+  const handleMetadataSuccess = () => {
     setStep("delegate");
   };
 
@@ -335,7 +341,26 @@ export function DeployAgent() {
         </div>
       )}
 
-      {/* Step 3: Delegate Identity to Agent Wallet */}
+      {/* Step 3: Set Metadata */}
+      {step === "metadata" && agentId != null && (
+        <div>
+          <AgentMetadataForm
+            agentId={agentId}
+            agentName={agentName || "OpenClaw Lending Agent"}
+            onSuccess={handleMetadataSuccess}
+          />
+          <div className="mx-auto mt-6 max-w-md border-t border-cream-dark pt-4">
+            <button
+              onClick={() => setStep("delegate")}
+              className="font-mono text-xs text-ink-lighter hover:text-ink"
+            >
+              Skip metadata (can be set later)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4: Delegate Identity to Agent Wallet */}
       {step === "delegate" && (
         <div className="mx-auto max-w-md">
           <h3 className="font-serif text-xl text-ink">
@@ -380,7 +405,7 @@ export function DeployAgent() {
         </div>
       )}
 
-      {/* Step 4: Monitor + Fund */}
+      {/* Step 5: Monitor + Fund */}
       {step === "monitor" && agentAddress && (
         <>
           {/* Fund agent section — always visible at top */}
