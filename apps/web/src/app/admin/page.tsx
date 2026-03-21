@@ -6,7 +6,7 @@ import { celo } from "viem/chains";
 import { Header } from "@/components/header";
 
 const REGISTRY_ADDRESS =
-  "0x62E37d0f6c5f67784b8828B3dF68BCDbB2e55095" as const;
+  "0xaC3DF9ABf80d0F5c020C06B04Cced27763355944" as const;
 
 const REGISTRY_ABI = [
   {
