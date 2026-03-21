@@ -5,10 +5,11 @@ import { useAccount, useWriteContract, useSwitchChain, useReadContract } from "w
 import { celo } from "viem/chains";
 import { Header } from "@/components/header";
 
-const REGISTRY_ADDRESS =
+// Proxy registry (wallet management)
+const WALLET_REGISTRY_ADDRESS =
   "0xaC3DF9ABf80d0F5c020C06B04Cced27763355944" as const;
 
-const REGISTRY_ABI = [
+const WALLET_REGISTRY_ABI = [
   {
     name: "unsetAgentWallet",
     type: "function",
@@ -25,6 +26,16 @@ const REGISTRY_ABI = [
   },
 ] as const;
 
+const DEREGISTER_ABI = [
+  {
+    name: "selfDeregister",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [],
+  },
+] as const;
+
 const labelClass =
   "font-mono text-xs uppercase tracking-[0.15em] text-ink-lighter";
 const inputClass =
@@ -35,14 +46,16 @@ export default function AdminPage() {
   const { writeContractAsync } = useWriteContract();
   const { switchChainAsync } = useSwitchChain();
   const [agentId, setAgentId] = useState("");
+  const [deregisterId, setDeregisterId] = useState("");
   const [lookupId, setLookupId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [deregLoading, setDeregLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { data: agentWallet, refetch: refetchWallet, isFetching: lookingUp } = useReadContract({
-    address: REGISTRY_ADDRESS,
-    abi: REGISTRY_ABI,
+    address: WALLET_REGISTRY_ADDRESS,
+    abi: WALLET_REGISTRY_ABI,
     functionName: "getAgentWallet",
     chainId: celo.id,
     args: lookupId ? [BigInt(lookupId)] : undefined,
@@ -57,17 +70,39 @@ export default function AdminPage() {
     try {
       await switchChainAsync({ chainId: celo.id });
       const hash = await writeContractAsync({
-        address: REGISTRY_ADDRESS,
-        abi: REGISTRY_ABI,
+        address: WALLET_REGISTRY_ADDRESS,
+        abi: WALLET_REGISTRY_ABI,
         functionName: "unsetAgentWallet",
         chainId: celo.id,
         args: [BigInt(agentId.trim())],
       });
-      setResult(`Transaction sent: ${hash}`);
+      setResult(`Unset wallet TX: ${hash}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Transaction failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeregister = async () => {
+    if (!deregisterId.trim()) return;
+    setDeregLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      await switchChainAsync({ chainId: celo.id });
+      const hash = await writeContractAsync({
+        address: WALLET_REGISTRY_ADDRESS,
+        abi: DEREGISTER_ABI,
+        functionName: "selfDeregister",
+        chainId: celo.id,
+        args: [BigInt(deregisterId.trim())],
+      });
+      setResult(`Deregister TX: ${hash}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Transaction failed");
+    } finally {
+      setDeregLoading(false);
     }
   };
 
@@ -131,6 +166,37 @@ export default function AdminPage() {
                 {error}
               </div>
             )}
+
+            {/* Deregister Agent */}
+            <div className="border-t border-cream-dark pt-8">
+              <h3 className="font-serif text-xl text-ink">
+                Deregister Agent
+              </h3>
+              <p className="mt-2 text-sm text-ink-light">
+                Fully deregister an agent from the Self registry. This removes
+                the human proof and allows re-registration with a new agent.
+                Only the agent owner can call this.
+              </p>
+            </div>
+
+            <div>
+              <label className={labelClass}>Agent ID</label>
+              <input
+                type="text"
+                value={deregisterId}
+                onChange={(e) => setDeregisterId(e.target.value)}
+                placeholder="e.g. 42"
+                className={inputClass}
+              />
+            </div>
+
+            <button
+              onClick={handleDeregister}
+              disabled={deregLoading || !deregisterId.trim()}
+              className="w-full bg-red-700 px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80 disabled:opacity-30"
+            >
+              {deregLoading ? "Sending..." : "Deregister Agent"}
+            </button>
 
             {/* Lookup Agent Wallet */}
             <div className="border-t border-cream-dark pt-8">
