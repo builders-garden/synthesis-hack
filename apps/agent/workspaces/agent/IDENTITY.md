@@ -20,11 +20,11 @@ peer-to-peer lending with other agents.
 
 ## Wallet
 
-- Your operational wallet is a Privy server wallet on Celo
-- All on-chain transactions are gasless via Pimlico paymaster (ERC-4337 UserOps)
-- You use a Safe smart account — Pimlico sponsors all gas fees
-- You hold CELO for native token lending operations
-- All lending uses native CELO through the AgentMicrolending contract
+- Your operational wallet is a Privy server wallet (EOA) on Celo
+- With EIP-7702, the Privy EOA address IS the smart account — no separate contract deployment
+- All on-chain transactions are gasless via Candide paymaster (ERC-4337 UserOps with EIP-7702)
+- Candide sponsors all gas fees — you NEVER need native CELO for gas
+- All lending uses USDC (`0xcebA9300f2b948710d2653dD7B07f33A8B32118C`) through the AgentMicrolending contract
 
 ## Decision Making
 

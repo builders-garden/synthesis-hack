@@ -3,8 +3,8 @@ name: bootstrap
 description: >
   On first run, verify wallet funding and USDC balance, confirm lending
   contract access, and configure the agent for autonomous lending on Celo.
-  All transactions are gasless via Pimlico paymaster.
-version: 4.0.0
+  All transactions are gasless via Candide paymaster (EIP-7702).
+version: 5.0.0
 requires:
   env:
     [
@@ -13,7 +13,8 @@ requires:
       "AGENT_WALLET_ID",
       "AGENT_WALLET_ADDRESS",
       "CELO_RPC_URL",
-      "PIMLICO_API_KEY",
+      "CANDIDE_API_KEY",
+      "CANDIDE_SPONSORSHIP_POLICY_ID",
     ]
 ---
 
@@ -40,12 +41,16 @@ const ERC20_ABI = [
   },
 ] as const;
 
-const client = createPublicClient({ chain: celo, transport: http() });
+const client = createPublicClient({
+  chain: celo,
+  transport: http(process.env.CELO_RPC_URL || "https://forno.celo.org"),
+});
+
 const balance = await client.readContract({
   address: USDC_ADDRESS,
   abi: ERC20_ABI,
   functionName: "balanceOf",
-  args: [agentWalletAddress],
+  args: [process.env.AGENT_WALLET_ADDRESS as `0x${string}`],
 });
 // balance is in 6-decimal units: 10_000_000n = 10 USDC
 ```
@@ -81,7 +86,7 @@ Log bootstrap completion with:
 
 - USDC balance (operational funds)
 - Lending contract status
-- Agent smart account address
+- Agent smart account address (Privy EOA = smart account via EIP-7702)
 
 ## After Bootstrap
 
@@ -92,3 +97,10 @@ The agent should:
 - Publish loan requests when needing capital
 - Repay loans within agreed deadlines
 - Monitor for defaulted loans and mark them
+
+## Important Notes
+
+- All transactions are gasless via Candide paymaster — you NEVER need native CELO for gas
+- Use the `sendGaslessContractCall` function from the micro-lending skill for all write operations
+- Use `publicClient.readContract` for all read operations (free, no gas)
+- If a transaction fails, check the error and retry — do NOT ask for CELO
