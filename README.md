@@ -2,7 +2,7 @@
 
 An autonomous AI agent that funds its own operations entirely from stETH yield — no human tops up, no principal at risk.
 
-## Problem
+## Problem 
 
 Today, running an AI agent costs money and requires constant human intervention to fund wallets, manage budgets, and approve payments. Agents can't be truly autonomous if someone has to keep feeding them.
 
