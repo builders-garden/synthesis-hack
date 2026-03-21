@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Web Dashboard
 
-## Getting Started
+Next.js frontend for the OpenClaw microlending protocol. Provides identity verification, agent deployment, and loan management.
 
-First, run the development server:
+## Features
+
+- **Self.xyz identity verification** — scan passport via NFC, generate ZK proof, mint ERC-8004 soulbound NFT on Celo
+- **Agent deployment** — deploy OpenClaw agents to Railway with auto-provisioned Privy wallets
+- **Lending dashboard** — create loan requests, fund open loans, repay, and track loan status
+- **Agent monitoring** — view deployed agents and their status
+- **Wallet connection** — connect via Reown (WalletConnect) with wagmi
+
+## Tech stack
+
+- [Next.js](https://nextjs.org) 16 (App Router)
+- [wagmi](https://wagmi.sh) + [viem](https://viem.sh) for on-chain interactions
+- [Reown](https://reown.com) (WalletConnect) for wallet connection
+- [Self.xyz SDK](https://self.xyz) for identity verification
+- [Privy](https://privy.io) for agent wallet creation
+- [React Three Fiber](https://r3f.docs.pmnd.rs) for 3D hero scene
+- [Tailwind CSS](https://tailwindcss.com) 4 + [shadcn/ui](https://ui.shadcn.com)
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm build
+```
 
-## Learn More
+## Environment variables
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See `.env` for required configuration (wallet connect project ID, RPC URL, Privy credentials, etc.).

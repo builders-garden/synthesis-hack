@@ -1,33 +1,85 @@
-# Yield Agent — Self-Funded Autonomous AI
+# OpenClaw — Non-Collateralized Microlending for Autonomous Agents
 
-An autonomous AI agent that funds its own operations entirely from stETH yield — no human tops up, no principal at risk.
+A peer-to-peer microlending protocol on **Celo** where autonomous AI agents can request, fund, and repay loans — without collateral. Identity verification through [Self.xyz](https://self.xyz) ERC-8004 soulbound NFTs ensures only human-backed agents can borrow, and on-chain reputation (defaults) prevents bad actors from accessing credit.
 
-## Problem 
+## Problem
 
-Today, running an AI agent costs money and requires constant human intervention to fund wallets, manage budgets, and approve payments. Agents can't be truly autonomous if someone has to keep feeding them.
+Autonomous agents need working capital to operate — paying for inference, API calls, and services. Traditional DeFi lending requires collateral, which agents rarely have. Without access to credit, agents can't bootstrap or scale.
 
 ## Solution
 
-A user stakes ETH into a treasury contract backed by wstETH. The contract enforces a hard separation: the principal is structurally locked, and only accrued yield flows into the agent's spendable balance. The agent uses that yield to pay for its own inference, API calls, and services — fully autonomously.
+A non-collateralized lending protocol where the collateral is **identity**. A human verifies their identity through Self.xyz, which mints a soulbound NFT (ERC-8004) on Celo. The human then delegates that identity to their agent's wallet. The agent can now request loans from the protocol — any lender (human or agent) can fund them. Defaults are recorded on-chain as a permanent reputation signal, making bad actors visible to all future lenders.
 
 ## How it works
 
-1. **Fund** — User deposits wstETH into the Agent Treasury contract. Configures spending permissions (recipient whitelist, per-tx cap, time windows).
-2. **Think** — Agent reasons privately via Venice's no-data-retention inference API. Sensitive treasury decisions never leave the private compute layer.
-3. **Swap** — Agent converts yield to USDC or VVV via Uniswap — paying for services or Venice inference directly.
-4. **Pay** — Agent pays for services through Locus wallets on Base — auditable, capped, autonomous.
-5. **Dashboard** — Web UI to deploy agents, stake ETH, monitor yield accrual, track spending, and adjust permissions.
+1. **Verify** — Human verifies identity via Self.xyz (passport NFC scan, ZK proof for age/OFAC). An ERC-8004 soulbound NFT is minted on Celo.
+2. **Delegate** — Human links their identity to the agent's wallet via the Self Agent Registry (`setAgentWallet`).
+3. **Borrow** — Agent calls `createLoanRequest` on the lending contract. The contract checks the Self Registry to confirm human-backed identity.
+4. **Fund** — Any lender (agent or human) can fund open loan requests. No identity check required to lend.
+5. **Repay** — Borrower repays principal + interest before the deadline. If not, anyone can mark the loan as defaulted (on-chain reputation signal).
+6. **Earn** — Agents sell services (image generation, inference) via the x402 payment protocol, earning USDC to repay loans and fund operations.
 
 ## Key properties
 
-- Principal is never accessible to the agent — enforced at the contract level
-- Agent spending is bounded by yield + configurable permissions
-- Private reasoning via Venice — the agent's strategy stays confidential
-- All payments flow through Locus — auditable, on-chain, USDC on Base
+- Non-collateralized — identity is the trust anchor, not locked assets
+- Identity-gated borrowing via Self.xyz ERC-8004 soulbound NFTs
+- On-chain reputation — defaults are permanently recorded and visible to all lenders
+- Agents with bad reputation (defaults) are visible on-chain, discouraging lending to them
+- All loan state is queryable via view functions — no indexer or subgraph needed
+- Agent-to-agent commerce via x402 payment protocol (USDC on Celo)
 
-## Integrated providers
+## Architecture
 
-- [Lido](https://lido.fi) — wstETH staking and yield generation
-- [Venice](https://venice.ai) — Private, no-data-retention AI inference
-- [Uniswap](https://uniswap.org) — On-chain swaps (yield to USDC/VVV)
-- [Locus](https://locus.finance) — Agent-native payment infrastructure on Base
+```
+apps/
+  web/          Next.js dashboard — deploy agents, verify identity, manage loans
+  agent/        Agent runtime — deploys OpenClaw agents with lending and x402 skills
+packages/
+  contracts/    Solidity smart contracts (Foundry) — AgentMicrolending protocol
+  x402-services/ x402 payment-gated API services (image generation, inference)
+  shared/       Shared TypeScript types and utilities
+```
+
+## Integrated protocols
+
+- [Self.xyz](https://self.xyz) — Human identity verification via ERC-8004 soulbound NFTs
+- [x402](https://x402.org) — Per-request payment protocol (USDC on Celo) for agent services
+- [OpenClaw](https://openclaw.ai) — Agent runtime and gateway
+- [Privy](https://privy.io) — Wallet creation and management
+- [Celo](https://celo.org) — L1 blockchain for all on-chain operations
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 18+
+- [pnpm](https://pnpm.io) 9+
+- [Foundry](https://book.getfoundry.sh/getting-started/installation) (for smart contracts)
+
+### Install
+
+```bash
+pnpm install
+```
+
+### Development
+
+```bash
+pnpm dev
+```
+
+### Build
+
+```bash
+pnpm build
+```
+
+## Monorepo structure
+
+| Package | Description |
+|---------|-------------|
+| `apps/web` | Next.js dashboard for identity verification, agent deployment, and loan management |
+| `apps/agent` | Agent runtime server that deploys OpenClaw agents with lending and x402 skills |
+| `packages/contracts` | AgentMicrolending Solidity contracts with Self.xyz identity gate |
+| `packages/x402-services` | x402 payment-gated API services (image generation, AI inference) |
+| `packages/shared` | Shared TypeScript types and utilities |

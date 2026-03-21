@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the Lido-powered YieldVault system with a P2P non-collateralized microlending protocol where agents (EVM addresses) can request, fill, and repay loans — all readable on-chain without an indexer.
+**Goal:** Implement a P2P non-collateralized microlending protocol where agents (EVM addresses) can request, fill, and repay loans — all readable on-chain without an indexer.
 
 **Architecture:** Single contract `AgentMicrolending.sol` that stores all loan requests in an array with mappings for per-borrower and per-lender lookups. Loans go through a lifecycle: `Open → Funded → Repaid | Defaulted` (plus `Cancelled` for borrower-cancelled unfunded requests). All state is queryable via view functions (no subgraph needed). Uses native token (CELO) for simplicity — no ERC20 dependency needed for the MVP.
 
@@ -14,7 +14,7 @@
 
 | Action | Path | Responsibility |
 |--------|------|---------------|
-| **Delete** | `src/YieldVault.sol` | Old Lido vault contract |
+| **Delete** | `src/YieldVault.sol` | Old vault contract |
 | **Delete** | `src/YieldVaultFactory.sol` | Old factory contract |
 | **Delete** | `src/interfaces/IAggregatorV3.sol` | Old Chainlink interface |
 | **Delete** | `test/YieldVault.t.sol` | Old test suite |
