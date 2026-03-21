@@ -3,7 +3,7 @@
     "defaults": {
       "workspace": "/data/workspace-agent",
       "model": {
-        "primary": "${OPENROUTER_MODEL}"
+        "primary": "openrouter/${OPENROUTER_MODEL}"
       }
     },
     "list": [
