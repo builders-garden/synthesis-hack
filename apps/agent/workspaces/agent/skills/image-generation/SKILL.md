@@ -157,74 +157,92 @@ automatically.
 
 ### How to Buy an x402 Service
 
-Use `@x402/fetch` or `@x402/axios` with your wallet as the signer. These
-libraries intercept the HTTP 402 response, sign the USDC payment authorization
-with your private key, and retry the request — all transparently.
+To pay for an x402-protected service, follow this two-step flow using raw
+`fetch` and your Privy wallet for EIP-712 signing.
 
-#### Using @x402/fetch
+#### Step-by-Step Buying Flow
 
 ```typescript
-import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
-import { privateKeyToAccount } from "viem/accounts";
+import { PrivyClient } from "@privy-io/node";
+import { createViemAccount } from "@privy-io/node/viem";
 
-// Initialize the x402 client with your wallet
-const client = new x402Client();
-registerExactEvmScheme(client, {
-  signer: privateKeyToAccount(process.env.AGENT_PRIVATE_KEY),
-});
+const WALLET_ID = process.env.AGENT_WALLET_ID!;
+const WALLET_ADDR = process.env.AGENT_WALLET_ADDRESS!;
 
-// Wrap the native fetch — all requests now handle x402 payments automatically
-const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+// 1. Make the initial request — expect HTTP 402
+const serviceUrl = "https://some-x402-service.com/api/endpoint";
+const requestBody = JSON.stringify({ prompt: "Hello world" });
 
-// Call any x402-protected endpoint — payment is seamless
-const response = await fetchWithPayment("https://some-service.com/api/endpoint", {
+const initialResponse = await fetch(serviceUrl, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ prompt: "Hello world" }),
+  body: requestBody,
 });
 
-const result = await response.json();
+if (initialResponse.status !== 402) {
+  // Not an x402 service or no payment needed
+  const result = await initialResponse.json();
+  // handle result
+}
+
+// 2. Parse the 402 response to get payment details
+const paymentRequired = JSON.parse(
+  initialResponse.headers.get("payment-required") || "{}"
+);
+// paymentRequired contains:
+// {
+//   price: "3100",           // USDC amount in atomic units (6 decimals)
+//   token: "0xcebA9300...",  // USDC contract address on Celo
+//   chainId: 42220,          // Celo
+//   payee: "0x...",          // service provider address
+//   facilitator: "https://...", // x402 facilitator URL
+//   ...eip712TypedData       // the EIP-712 typed data to sign
+// }
+
+// 3. Sign the EIP-712 payment authorization with Privy
+const privy = new PrivyClient({
+  appId: process.env.PRIVY_APP_ID!,
+  appSecret: process.env.PRIVY_APP_SECRET!,
+});
+const account = await createViemAccount(privy, {
+  walletId: WALLET_ID,
+  address: WALLET_ADDR as `0x${string}`,
+});
+
+// The 402 response includes the exact EIP-712 typed data to sign
+const signature = await account.signTypedData({
+  domain: paymentRequired.eip712.domain,
+  types: paymentRequired.eip712.types,
+  primaryType: paymentRequired.eip712.primaryType,
+  message: paymentRequired.eip712.message,
+});
+
+// 4. Retry the same request with the payment signature
+const paidResponse = await fetch(serviceUrl, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "PAYMENT-SIGNATURE": signature,
+  },
+  body: requestBody,
+});
+
+const result = await paidResponse.json();
+// result contains the service response (e.g., generated image)
 ```
 
-#### Using @x402/axios
-
-```typescript
-import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
-import { privateKeyToAccount } from "viem/accounts";
-import axios from "axios";
-
-// Initialize the x402 client with your wallet
-const client = new x402Client();
-registerExactEvmScheme(client, {
-  signer: privateKeyToAccount(process.env.AGENT_PRIVATE_KEY),
-});
-
-// Wrap an Axios instance
-const api = wrapAxiosWithPayment(axios.create(), client);
-
-// Make requests — payment handled automatically
-const response = await api.post("https://some-service.com/api/endpoint", {
-  prompt: "Hello world",
-});
-
-console.log(response.data);
-```
-
-### What Happens Under the Hood When You Buy
+### What Happens When You Buy
 
 1. You make a normal HTTP request to the x402-protected endpoint.
 2. The server responds with **HTTP 402 Payment Required** and includes payment
-   details in the response headers: price, payment token (USDC), network
-   (Celo), and the payee address.
-3. The x402 client library reads these headers, constructs an EIP-712 typed
-   data signature authorizing a USDC transfer for the exact amount.
-4. Your wallet signs the authorization (no on-chain transaction yet).
-5. The library retries the request with the `PAYMENT-SIGNATURE` header.
-6. The server verifies the signature via the facilitator and settles the USDC
+   details in the `payment-required` header: price, token (USDC), chain (Celo),
+   payee address, and EIP-712 typed data.
+3. You sign the EIP-712 authorization with your Privy wallet — this authorizes
+   a USDC transfer for the exact amount (no on-chain tx yet).
+4. You retry the same request with the `PAYMENT-SIGNATURE` header.
+5. The server verifies the signature via the facilitator and settles the USDC
    payment on-chain on Celo.
-7. You receive the service response as if it were a normal API call.
+6. You receive the service response as if it were a normal API call.
 
 ### When to Buy x402 Services
 
