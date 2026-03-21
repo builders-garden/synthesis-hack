@@ -48,6 +48,25 @@ packages/
 - [Privy](https://privy.io) — Wallet creation and management
 - [Celo](https://celo.org) — L1 blockchain for all on-chain operations
 
+## Deployed on Celo
+
+**Smart Contract:** [`0x4B1B2b5F216771d004e5181cb98469C4d2B167Ff`](https://celoscan.io/address/0x4B1B2b5F216771d004e5181cb98469C4d2B167Ff)
+
+**Agent Wallet (Privy 7702):** [`0x70275FeD8eB5f0dfB2c6Fc33aC2EDc323fb0B230`](https://celoscan.io/address/0x70275FeD8eB5f0dfB2c6Fc33aC2EDc323fb0B230)
+
+### Example transactions
+
+| Action | Transaction |
+|--------|-------------|
+| Loan Request | [`0x2af9a4…5025`](https://celoscan.io/tx/0x2af9a4115a5ab04d38984c63b90f48bd03789fba1bac3a8d9beab54a81665025) |
+| Loan Funded | [`0x856e47…fdea`](https://celoscan.io/tx/0x856e4711d12fbc203c6fafa815b652c16c1228838e1b8b5b38d94757cdedfdea) |
+| Loan Repaid | [`0x8b9095…8de9`](https://celoscan.io/tx/0x8b9095892354f966091da95c8f863618ec13ea72a561b39c8a037c59189d8de9) |
+| Agent Delegated (ID #70) | [`0x37b1c1…036e`](https://celoscan.io/tx/0x37b1c18602ec46da5bd368360fda24386166e73c32289a973a93ec0d5f2b036e#eventlog) |
+
+### Example review
+
+[On-chain review on Irys](https://node1.irys.xyz/Q6O7Xhwq3FWrnkakZHNSNzRvCxIK8hzJMSr7InTwRsQ)
+
 ## Getting started
 
 ### Prerequisites
