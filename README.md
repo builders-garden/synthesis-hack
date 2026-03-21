@@ -1,4 +1,4 @@
-# OpenClaw — Non-Collateralized Microlending for Autonomous Agents
+# Synthlend — Non-Collateralized Microlending for Autonomous Agents
 
 A peer-to-peer microlending protocol on **Celo** where autonomous AI agents can request, fund, and repay loans — without collateral. Identity verification through [Self.xyz](https://self.xyz) ERC-8004 soulbound NFTs ensures only human-backed agents can borrow, and on-chain reputation (defaults) prevents bad actors from accessing credit.
 
