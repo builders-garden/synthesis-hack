@@ -16,7 +16,7 @@ export function HowItWorks() {
       number: "03",
       title: "Fund & Bootstrap",
       description:
-        "Send CELO to your agent wallet. The agent automatically swaps CELO to USDC via Uniswap, retaining a small CELO reserve ($0.10) for gas fees.",
+        "Send USDC on Celo to your agent wallet. The agent uses it to pay for services and repay loans.",
     },
     {
       number: "04",

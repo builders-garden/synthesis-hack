@@ -29,8 +29,11 @@ const KEY_COLORS = [
   "#e87090", "#40bfbf", BEIGE_DARK,
 ];
 
-/* ── CRT Screen content ── */
-function ScreenContent() {
+/* ── YouTube video ID — replace with your own ── */
+const YOUTUBE_VIDEO_ID = "dQw4w9WgXcQ";
+
+/* ── CRT Screen content (YouTube thumbnail with play button) ── */
+function ScreenContent({ onPlay }: { onPlay?: () => void }) {
   return (
     <Html
       transform
@@ -43,106 +46,60 @@ function ScreenContent() {
         background: "#1a1a2e",
         borderRadius: "4px",
         overflow: "hidden",
-        fontFamily: "'Geist Mono', 'Monaco', monospace",
-        fontSize: "11px",
-        color: "#e0ddd6",
         userSelect: "none",
-        pointerEvents: "none",
       }}
     >
-      <div style={{ padding: "10px 12px", height: "100%" }}>
-        {/* Title bar */}
+      <div
+        onClick={onPlay}
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          cursor: "pointer",
+        }}
+      >
+        {/* YouTube thumbnail */}
+        <img
+          src={`https://img.youtube.com/vi/${YOUTUBE_VIDEO_ID}/hqdefault.jpg`}
+          alt="Watch video"
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+        />
+        {/* Play button overlay */}
         <div
           style={{
+            position: "absolute",
+            inset: 0,
             display: "flex",
-            justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: "8px",
-            opacity: 0.6,
-            fontSize: "10px",
-            letterSpacing: "0.05em",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.3)",
           }}
         >
-          <span>ClawOS 1.0</span>
-          {/* Colorful window dots */}
-          <span style={{ display: "flex", gap: "4px" }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#e03a3e", display: "inline-block" }} />
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#fdb827", display: "inline-block" }} />
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#61bb46", display: "inline-block" }} />
-          </span>
-        </div>
-        <div style={{ display: "flex", gap: "12px", height: "calc(100% - 28px)" }}>
           <div
             style={{
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              background: "rgba(0,0,0,0.7)",
               display: "flex",
-              flexDirection: "column",
-              gap: "5px",
-              fontSize: "10px",
-              minWidth: "70px",
-            }}
-          >
-            {[
-              { icon: "◆", label: "Identity", color: "#50a0d8" },
-              { icon: "◆", label: "Wallet", color: "#e8d44d" },
-              { icon: "◆", label: "Lending", color: "#61bb46" },
-              { icon: "◆", label: "Agent", color: "#e87090" },
-              { icon: "◆", label: "Logs", color: "#9c958e" },
-            ].map((item) => (
-              <div key={item.label} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                <span style={{ color: item.color, fontSize: "6px" }}>{item.icon}</span>
-                <span>{item.label}</span>
-              </div>
-            ))}
-          </div>
-          <div
-            style={{
-              flex: 1,
-              background: "#f0eae0",
-              color: "#1a1a1a",
-              borderRadius: "2px",
-              padding: "8px",
-              fontSize: "10px",
-              lineHeight: "1.5",
-              fontFamily: "'Geist Mono', 'Monaco', monospace",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
             <div
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                borderBottom: "1px dashed #9c958e",
-                paddingBottom: "4px",
-                marginBottom: "6px",
-                fontSize: "9px",
-                fontWeight: "bold",
+                width: 0,
+                height: 0,
+                borderLeft: "18px solid #fff",
+                borderTop: "11px solid transparent",
+                borderBottom: "11px solid transparent",
+                marginLeft: 4,
               }}
-            >
-              <span>agent.log</span>
-              <span>[x]</span>
-            </div>
-            <div style={{ opacity: 0.85 }}>
-              <span style={{ color: "#50a0d8" }}>{">"}</span> Identity verified via Self
-              <br />
-              <span style={{ color: "#61bb46" }}>{">"}</span> Deposited 100 USDC to pool
-              <br />
-              <span style={{ color: "#e8d44d" }}>{">"}</span> Loan disbursed: 50 USDC
-              <br />
-              <span style={{ color: "#e87090" }}>{">"}</span> Repayment received.
-              <br />
-              <span style={{ color: "#9070c0" }}>{">"}</span> Reputation +10.
-              <br />
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "6px",
-                  height: "11px",
-                  background: "#61bb46",
-                  animation: "blink 1s step-end infinite",
-                  verticalAlign: "text-bottom",
-                  marginLeft: "2px",
-                }}
-              />
-            </div>
+            />
           </div>
         </div>
       </div>
@@ -167,7 +124,6 @@ function ScreenContent() {
           pointerEvents: "none",
         }}
       />
-      <style>{`@keyframes blink { 50% { opacity: 0; } }`}</style>
     </Html>
   );
 }
@@ -326,7 +282,7 @@ function FloppyDisk() {
 }
 
 /* ── The retro Macintosh ── */
-function RetroComputer() {
+function RetroComputer({ onScreenClick }: { onScreenClick?: () => void }) {
   const groupRef = useRef<THREE.Group>(null!);
 
   return (
@@ -367,7 +323,7 @@ function RetroComputer() {
         />
 
         {/* ── Screen content ── */}
-        <ScreenContent />
+        <ScreenContent onPlay={onScreenClick} />
 
         {/* ── Rainbow stripe on front ── */}
         <RainbowStripe />
@@ -492,7 +448,7 @@ function RetroComputer() {
 }
 
 /* ── Main exported scene ── */
-export function HeroScene() {
+export function HeroScene({ onScreenClick }: { onScreenClick?: () => void }) {
   return (
     <div className="h-[500px] w-[400px] md:h-[620px] md:w-[520px] lg:h-[700px] lg:w-[600px]">
       <Canvas
@@ -505,7 +461,7 @@ export function HeroScene() {
         <directionalLight position={[-2, 1, 3]} intensity={0.3} color={GOLD} />
         <pointLight position={[0, 2, 3]} intensity={0.3} color={GOLD} />
 
-        <RetroComputer />
+        <RetroComputer onScreenClick={onScreenClick} />
 
         <ContactShadows
           position={[0, -1.2, 0]}
