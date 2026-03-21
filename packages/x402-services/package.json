@@ -12,7 +12,9 @@
     "@hono/node-server": "^1.14.0",
     "@x402/core": "^2.3.0",
     "@x402/hono": "^2.3.0",
-    "@x402/evm": "^2.3.0",
+    "@x402/evm": "^2.3.0"
+  },
+  "devDependencies": {
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5"

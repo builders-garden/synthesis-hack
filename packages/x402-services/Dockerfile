@@ -22,9 +22,10 @@ FROM node:20-slim AS production
 WORKDIR /app
 
 COPY --from=base /app/packages/x402-services/dist ./dist
-COPY --from=base /app/packages/x402-services/package.json ./
-COPY --from=base /app/node_modules ./node_modules
-COPY --from=base /app/packages/x402-services/node_modules ./packages/x402-services/node_modules
+COPY --from=base /app/packages/x402-services/package.json ./package.json
+
+# Install production deps with npm (no symlink issues like pnpm)
+RUN npm install --omit=dev
 
 ENV PORT=3002
 
