@@ -145,12 +145,14 @@ interface LendingDashboardProps {
   agentAddress: string;
   humanAddress: string;
   isVerified: boolean;
+  onVerify?: () => void;
 }
 
 export function LendingDashboard({
   agentAddress,
   humanAddress,
   isVerified,
+  onVerify,
 }: LendingDashboardProps) {
   // Loan request form
   const [requestAmount, setRequestAmount] = useState("");
@@ -313,8 +315,18 @@ export function LendingDashboard({
 
           {!isVerified && (
             <div className="mt-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-              Identity verification required to borrow. Only agents backed by
-              a verified human (8004 SBT) can request loans.
+              <p>
+                Identity verification required to borrow. Only agents backed by
+                a verified human (8004 SBT) can request loans.
+              </p>
+              {onVerify && (
+                <button
+                  onClick={onVerify}
+                  className="mt-2 bg-ink px-4 py-2 font-mono text-xs uppercase tracking-wider text-cream transition-opacity hover:opacity-80"
+                >
+                  Verify Identity
+                </button>
+              )}
             </div>
           )}
 

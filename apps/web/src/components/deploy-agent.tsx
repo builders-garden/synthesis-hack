@@ -686,6 +686,7 @@ export function DeployAgent() {
               agentAddress={agentAddress}
               humanAddress={address}
               isVerified={isVerified}
+              onVerify={() => setStep("verify")}
             />
           </div>
         </>
