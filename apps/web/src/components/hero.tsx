@@ -87,7 +87,7 @@ export function Hero() {
             <div className="flex items-center gap-6">
               <Link
                 href="/dashboard"
-                className="inline-flex items-center justify-center rounded-none bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-none bg-ink px-8 py-4 font-mono text-sm uppercase tracking-wider text-cream transition-opacity hover:opacity-80"
               >
                 Launch Agent
               </Link>
