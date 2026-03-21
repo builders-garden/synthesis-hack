@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 
-const YOUTUBE_VIDEO_ID = "dQw4w9WgXcQ";
+const YOUTUBE_VIDEO_ID = "C_MifNcteFM";
 
 const HeroScene = dynamic(
   () => import("@/components/hero-scene").then((mod) => mod.HeroScene),

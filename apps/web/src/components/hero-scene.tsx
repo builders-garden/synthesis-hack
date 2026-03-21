@@ -30,7 +30,7 @@ const KEY_COLORS = [
 ];
 
 /* ── YouTube video ID — replace with your own ── */
-const YOUTUBE_VIDEO_ID = "dQw4w9WgXcQ";
+const YOUTUBE_VIDEO_ID = "C_MifNcteFM";
 
 /* ── CRT Screen content (YouTube thumbnail with play button) ── */
 function ScreenContent({ onPlay }: { onPlay?: () => void }) {
