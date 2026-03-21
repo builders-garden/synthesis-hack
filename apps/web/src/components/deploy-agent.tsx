@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useAccount, useWriteContract, useSwitchChain } from "wagmi";
+import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
 import { SelfVerification } from "@/components/self-verification";
 import { LendingDashboard } from "@/components/lending-dashboard";
@@ -35,6 +36,25 @@ const REGISTRY_ABI = [
     outputs: [],
   },
 ] as const;
+
+// Wallet-check registry (proxy with getAgentWallet)
+const WALLET_REGISTRY_ADDRESS =
+  "0xaC3DF9ABf80d0F5c020C06B04Cced27763355944" as const;
+
+const WALLET_REGISTRY_ABI = [
+  {
+    name: "getAgentWallet",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+] as const;
+
+const celoClient = createPublicClient({
+  chain: celo,
+  transport: http("https://forno.celo.org"),
+});
 
 const STEPS = [
   { id: "deploy", label: "Deploy Agent" },
@@ -114,17 +134,45 @@ export function DeployAgent() {
   useEffect(() => {
     if (!address) return;
     const saved = loadDeployedAgent(address);
-    if (saved) {
-      setAgentName(saved.agentName);
-      setAgentAddress(saved.agentAddress);
-      setWalletId(saved.walletId);
-      setServiceId(saved.serviceId);
-      setEnvironmentId(saved.environmentId);
-      if (saved.agentId != null) setAgentId(saved.agentId);
-      if (saved.isVerified) setIsVerified(true);
-      if (saved.isDelegated) setIsDelegated(true);
-      if (saved.telegramBotToken) setTelegramBotToken(saved.telegramBotToken);
-      if (saved.telegramUserId) setTelegramUserId(saved.telegramUserId);
+    if (!saved) return;
+
+    setAgentName(saved.agentName);
+    setAgentAddress(saved.agentAddress);
+    setWalletId(saved.walletId);
+    setServiceId(saved.serviceId);
+    setEnvironmentId(saved.environmentId);
+    if (saved.agentId != null) setAgentId(saved.agentId);
+    if (saved.isVerified) setIsVerified(true);
+    if (saved.isDelegated) setIsDelegated(true);
+    if (saved.telegramBotToken) setTelegramBotToken(saved.telegramBotToken);
+    if (saved.telegramUserId) setTelegramUserId(saved.telegramUserId);
+
+    // Check if the agent still has a wallet on the registry
+    if (saved.agentId != null) {
+      celoClient
+        .readContract({
+          address: WALLET_REGISTRY_ADDRESS,
+          abi: WALLET_REGISTRY_ABI,
+          functionName: "getAgentWallet",
+          args: [BigInt(saved.agentId)],
+        })
+        .then((wallet) => {
+          if (
+            !wallet ||
+            wallet === "0x0000000000000000000000000000000000000000"
+          ) {
+            // Wallet was unset — need to re-verify and re-delegate
+            setIsDelegated(false);
+            setStep("verify");
+          } else {
+            setStep("monitor");
+          }
+        })
+        .catch(() => {
+          // If query fails, default to monitor
+          setStep("monitor");
+        });
+    } else {
       setStep("monitor");
     }
   }, [address]);
