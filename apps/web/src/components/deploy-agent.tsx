@@ -20,7 +20,7 @@ const CELO_USDC = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C";
 
 // Self Agent Registry (ERC-8004) on Celo mainnet
 const REGISTRY_ADDRESS =
-  "0x62E37d0f6c5f67784b8828B3dF68BCDbB2e55095" as const;
+  "0xaC3DF9ABf80d0F5c020C06B04Cced27763355944" as const;
 
 const REGISTRY_ABI = [
   {
