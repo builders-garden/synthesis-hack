@@ -16,7 +16,10 @@
         "CANDIDE_API_KEY",
         "CANDIDE_SPONSORSHIP_POLICY_ID",
         "TELEGRAM_BOT_TOKEN",
-        "TELEGRAM_ALLOWED_USERS"
+        "TELEGRAM_ALLOWED_USERS",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_MODEL",
+        "LENDING_CONTRACT_ADDRESS"
       ]
     },
     "dev": {

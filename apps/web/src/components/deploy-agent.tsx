@@ -9,8 +9,8 @@ import { AgentMetadataForm } from "@/components/agent-metadata-form";
 import dynamic from "next/dynamic";
 import type { WidgetConfig } from "@lifi/widget";
 
-const LiFiWidget = dynamic(
-  () => import("@lifi/widget").then((m) => m.LiFiWidget),
+const LiFiWidgetWrapper = dynamic(
+  () => import("@/components/lifi-widget-wrapper"),
   { ssr: false }
 );
 
@@ -628,7 +628,7 @@ export function DeployAgent() {
 
             {showFundWidget && (
               <div className="mt-6">
-                <LiFiWidget {...lifiConfig} />
+                <LiFiWidgetWrapper {...lifiConfig} />
               </div>
             )}
           </div>

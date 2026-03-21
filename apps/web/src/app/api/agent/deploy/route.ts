@@ -81,6 +81,22 @@ export async function POST(req: NextRequest) {
       envVars.LENDING_CONTRACT_ADDRESS = lendingContract;
     }
 
+    // AI provider API keys: pass through whichever is set on the dashboard server
+    const aiKeyNames = [
+      "OPENAI_API_KEY",
+      "ANTHROPIC_API_KEY",
+      "OPENROUTER_API_KEY",
+      "OPENROUTER_MODEL",
+      "GROQ_API_KEY",
+      "MISTRAL_API_KEY",
+      "XAI_API_KEY",
+    ] as const;
+    for (const key of aiKeyNames) {
+      if (process.env[key]) {
+        envVars[key] = process.env[key]!;
+      }
+    }
+
     // Telegram: use frontend values, fall back to server env vars, skip if neither
     const telegramToken = body.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN;
     const telegramUsers = body.telegramAllowedUsers || process.env.TELEGRAM_ALLOWED_USERS;
