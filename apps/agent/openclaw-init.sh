@@ -81,23 +81,22 @@ else
   echo "[init] openclaw.json already exists — skipping template render"
 fi
 
-# ── Copy workspace files (first boot only) ──────────────────────────────
-if [ ! -d "$OPENCLAW_WORKSPACE_DIR" ]; then
-  echo "[init] Setting up workspace..."
-  mkdir -p "$OPENCLAW_WORKSPACE_DIR"
-  cp -r /app/custom/workspaces/agent/* "$OPENCLAW_WORKSPACE_DIR/"
+# ── Sync workspace skills from image on every boot ───────────────────────
+echo "[init] Syncing workspace skills from image..."
+mkdir -p "$OPENCLAW_WORKSPACE_DIR"
 
-  # Render any templates in workspace files
-  for f in "$OPENCLAW_WORKSPACE_DIR"/*.md; do
-    if [ -f "$f" ]; then
-      envsubst < "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-    fi
-  done
+# Remove old skills dir and copy fresh from image
+rm -rf "$OPENCLAW_WORKSPACE_DIR/skills"
+cp -r /app/custom/workspaces/agent/* "$OPENCLAW_WORKSPACE_DIR/"
 
-  echo "[init] Workspace ready at $OPENCLAW_WORKSPACE_DIR"
-else
-  echo "[init] Workspace already exists at $OPENCLAW_WORKSPACE_DIR"
-fi
+# Render any templates in workspace files
+for f in "$OPENCLAW_WORKSPACE_DIR"/*.md; do
+  if [ -f "$f" ]; then
+    envsubst < "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  fi
+done
+
+echo "[init] Workspace synced at $OPENCLAW_WORKSPACE_DIR"
 
 # ── Telegram channel ─────────────────────────────────────────────────────
 if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then
