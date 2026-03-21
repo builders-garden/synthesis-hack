@@ -72,14 +72,10 @@ else
   echo "[init] Set PRIVY_APP_ID and PRIVY_APP_SECRET in .env"
 fi
 
-# ── Render OpenClaw config from template (first boot only) ───────────────
-if [ ! -s "$OPENCLAW_STATE_DIR/openclaw.json" ]; then
-  mkdir -p "$OPENCLAW_STATE_DIR"
-  envsubst < /app/custom/config/openclaw.template.json > "$OPENCLAW_STATE_DIR/openclaw.json"
-  echo "[init] Rendered openclaw.json from template"
-else
-  echo "[init] openclaw.json already exists — skipping template render"
-fi
+# ── Render OpenClaw config from template on every boot ────────────────────
+mkdir -p "$OPENCLAW_STATE_DIR"
+envsubst < /app/custom/config/openclaw.template.json > "$OPENCLAW_STATE_DIR/openclaw.json"
+echo "[init] Rendered openclaw.json from template"
 
 # ── Sync workspace skills from image on every boot ───────────────────────
 echo "[init] Syncing workspace skills from image..."
