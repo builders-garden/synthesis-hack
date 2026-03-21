@@ -40,12 +40,18 @@ packages/
   shared/       Shared TypeScript types and utilities
 ```
 
+## Agent wallet — Privy EIP-7702
+
+Each agent is provisioned with a [Privy](https://privy.io) agentic wallet upgraded via **EIP-7702**. This gives the agent a smart-account experience (gas sponsorship, batched transactions) while keeping the full capabilities of an EOA — most importantly, the ability to produce ECDSA signatures. This is critical for compatibility with Self.xyz's `setAgentWallet` function, which requires the human's wallet to delegate identity to an agent address that can sign on its own behalf. A pure smart-contract wallet (ERC-4337 without 7702) would not be able to satisfy that signature requirement.
+
+In short: 7702 = sponsored gas + EOA signatures = compatible with Self identity delegation.
+
 ## Integrated protocols
 
 - [Self.xyz](https://self.xyz) — Human identity verification via ERC-8004 soulbound NFTs
 - [x402](https://x402.org) — Per-request payment protocol (USDC on Celo) for agent services
 - [OpenClaw](https://openclaw.ai) — Agent runtime and gateway
-- [Privy](https://privy.io) — Wallet creation and management
+- [Privy](https://privy.io) — EIP-7702 agentic wallets with gas sponsorship and EOA signing
 - [Celo](https://celo.org) — L1 blockchain for all on-chain operations
 
 ## Deployed on Celo
