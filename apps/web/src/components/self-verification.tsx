@@ -241,6 +241,24 @@ export function SelfVerification({
         </div>
       )}
 
+      <div className="flex items-center gap-4">
+        <button
+          onClick={() => {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+            setStatus("idle");
+            setSession(null);
+            setError(null);
+          }}
+          className="border border-ink px-6 py-3 font-mono text-xs uppercase tracking-wider text-ink transition-opacity hover:opacity-80"
+        >
+          Retry
+        </button>
+        <p className="text-xs text-ink-lighter">
+          If verification failed on your phone, deregister the old agent on
+          the /admin page first, then retry.
+        </p>
+      </div>
+
       <p className="text-xs text-ink-lighter">
         Powered by Self Agent ID (ERC-8004). Zero-knowledge passport
         verification — your personal data never leaves your device.
