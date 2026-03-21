@@ -27,49 +27,15 @@ if [ -z "${OPENCLAW_GATEWAY_TOKEN:-}" ]; then
 fi
 
 # ── Privy agentic wallet ─────────────────────────────────────────────────
-# Create a Privy server wallet for the agent on Celo
-if [ -f "$PRIVY_CREDS_FILE" ]; then
-  echo "[init] Found saved Privy wallet credentials from previous boot"
-  AGENT_WALLET_ID="$(jq -r '.walletId' "$PRIVY_CREDS_FILE")"
-  AGENT_WALLET_ADDRESS="$(jq -r '.address' "$PRIVY_CREDS_FILE")"
-  export AGENT_WALLET_ID
-  export AGENT_WALLET_ADDRESS
+# If AGENT_WALLET_ID and AGENT_WALLET_ADDRESS are already set (from deploy),
+# use them directly — do NOT override with saved credentials or create new ones.
+if [ -n "${AGENT_WALLET_ID:-}" ] && [ -n "${AGENT_WALLET_ADDRESS:-}" ]; then
+  echo "[init] Using wallet from env vars (set at deploy time)"
   echo "[init]   Wallet ID: $AGENT_WALLET_ID"
   echo "[init]   Address:   $AGENT_WALLET_ADDRESS"
-elif [ -n "$PRIVY_APP_ID" ] && [ -n "$PRIVY_APP_SECRET" ]; then
-  echo "[init] Creating Privy agentic wallet..."
-
-  WALLET_RESPONSE="$(node -e "
-const { PrivyClient } = require('@privy-io/node');
-(async () => {
-  const client = new PrivyClient({ appId: '${PRIVY_APP_ID}', appSecret: '${PRIVY_APP_SECRET}' });
-  const { id, address, chain_type } = await client.wallets().create({ chain_type: 'ethereum' });
-  console.log(JSON.stringify({ walletId: id, address: address }));
-})().catch(e => { console.error(e.message); process.exit(1); });
-" 2>&1)" || true
-
-  if echo "$WALLET_RESPONSE" | jq -e '.walletId' > /dev/null 2>&1; then
-    AGENT_WALLET_ID="$(echo "$WALLET_RESPONSE" | jq -r '.walletId')"
-    AGENT_WALLET_ADDRESS="$(echo "$WALLET_RESPONSE" | jq -r '.address')"
-    export AGENT_WALLET_ID
-    export AGENT_WALLET_ADDRESS
-
-    # Save credentials
-    echo "$WALLET_RESPONSE" > "$PRIVY_CREDS_FILE"
-    chmod 600 "$PRIVY_CREDS_FILE"
-
-    echo "[init] Privy wallet created!"
-    echo "[init]   Wallet ID: $AGENT_WALLET_ID"
-    echo "[init]   Address:   $AGENT_WALLET_ADDRESS"
-    echo "[init]   IMPORTANT: Fund wallet with USDC on Celo to enable lending"
-  else
-    echo "[init] WARNING: Privy wallet creation failed"
-    echo "[init] Response: $WALLET_RESPONSE"
-    echo "[init] Agent will boot without a wallet — set PRIVY_APP_ID and PRIVY_APP_SECRET"
-  fi
 else
-  echo "[init] WARNING: No Privy credentials — agent cannot create a wallet"
-  echo "[init] Set PRIVY_APP_ID and PRIVY_APP_SECRET in .env"
+  echo "[init] WARNING: No AGENT_WALLET_ID/AGENT_WALLET_ADDRESS in env"
+  echo "[init] The dashboard should set these at deploy time"
 fi
 
 # ── Render OpenClaw config from template on every boot ────────────────────
